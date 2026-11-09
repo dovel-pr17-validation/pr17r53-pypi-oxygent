@@ -1,0 +1,339 @@
+"""Live prompt agent wrapper with hot-reload support.
+
+Provides the DynamicAgentManager that auto-discovers agents using live prompts
+from a MAS instance and enables runtime prompt updates without service restarts.
+"""
+
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class DynamicAgentManager:
+    """Manages live-prompt bindings between agents and their prompt keys.
+
+    Discovers which agents in a MAS instance use live prompts, maintains
+    the agent-to-prompt-key mapping, and coordinates hot-reload updates.
+
+    Attributes:
+        agent_prompt_mapping: Mapping of agent names to their prompt keys.
+        mas_instance: The MAS runtime instance being managed.
+    """
+
+    def __init__(self) -> None:
+        self.agent_prompt_mapping: dict[str, str] = {}
+        self.mas_instance: Any = None
+
+    def register_agents_from_mas(self, mas_instance: Any) -> bool:
+        """Auto-register agents that use live prompts from a MAS instance.
+
+        Args:
+            mas_instance: The MAS runtime whose agents should be scanned.
+
+        Returns:
+            True if at least one agent was registered.
+        """
+        try:
+            self.mas_instance = mas_instance
+            actual_agents = list(mas_instance.oxy_name_to_oxy.keys())
+
+            live_prompt_agents = []
+
+            # Only register agents that use get_live_prompts
+            for agent_name in actual_agents:
+                agent_instance = mas_instance.oxy_name_to_oxy[agent_name]
+
+                # Check if this agent uses live prompts by examining its prompt
+                if self._agent_uses_live_prompts(agent_instance):
+                    # Use agent's custom prompt_key if set, otherwise default to {agent_name}_prompt
+                    prompt_key = (
+                        getattr(agent_instance, "prompt_key", None)
+                        or f"{agent_name}_prompt"
+                    )
+                    self.agent_prompt_mapping[agent_name] = prompt_key
+                    live_prompt_agents.append(agent_name)
+                    logger.info(
+                        f"Registered live prompt agent: {agent_name} with key: {prompt_key}"
+                    )
+                else:
+                    logger.debug(f"Skipping agent without live prompts: {agent_name}")
+
+            logger.debug(
+                f"Live prompt registration completed: {len(live_prompt_agents)} agents registered"
+            )
+            logger.debug(f"Live prompt agents: {live_prompt_agents}")
+            return len(live_prompt_agents) > 0
+
+        except Exception as e:
+            logger.error(f"Live prompt registration failed: {e}", exc_info=True)
+            return False
+
+    def _agent_uses_live_prompts(self, agent_instance: Any) -> bool:
+        """Check whether *agent_instance* has a ``prompt`` attribute."""
+        try:
+            # Check if agent has a prompt attribute
+            if not hasattr(agent_instance, "prompt"):
+                return False
+            return True
+
+        except Exception as e:
+            logger.warning(
+                f"Error checking if agent uses live prompts: {e}", exc_info=True
+            )
+            return False
+
+    async def update_agent_prompt(self, agent_name: str) -> bool:
+        """Fetch the latest prompt from ES and apply it to the named agent.
+
+        Args:
+            agent_name: Name of the agent whose prompt should be refreshed.
+
+        Returns:
+            True if the prompt was successfully updated.
+        """
+        if not self.mas_instance or agent_name not in self.agent_prompt_mapping:
+            logger.warning(f"Agent not found: {agent_name}")
+            return False
+
+        try:
+            from .manager import get_prompt_manager
+
+            prompt_key = self.agent_prompt_mapping[agent_name]
+            agent_instance = self.mas_instance.oxy_name_to_oxy[agent_name]
+
+            # Get manager (cache may already have latest data from save_prompt)
+            manager = await get_prompt_manager()
+            logger.debug(f"Hot reload for {agent_name} using prompt_key: {prompt_key}")
+
+            # Use agent's reload_prompt method if available
+            if hasattr(agent_instance, "reload_prompt"):
+                success = await agent_instance.reload_prompt()
+                if success:
+                    logger.debug(f"Hot-reloaded prompt for: {agent_name}")
+                return success
+            # Fallback to old approach for backward compatibility
+            elif hasattr(agent_instance, "prompt"):
+                from .manager import resolve_prompt_from_es
+
+                # Get original prompt as fallback
+                original_prompt = getattr(agent_instance, "prompt", "")
+
+                # Get latest prompt from ES
+                new_prompt = await resolve_prompt_from_es(prompt_key, original_prompt)
+
+                # Update agent prompt
+                agent_instance.prompt = new_prompt
+
+                # Re-set description for LLM if method exists
+                if hasattr(agent_instance, "_set_desc_for_llm"):
+                    agent_instance._set_desc_for_llm()
+
+                logger.info(f"Updated prompt for: {agent_name}")
+                return True
+            else:
+                logger.warning(
+                    f"Agent has no prompt attribute or reload_prompt method: {agent_name}"
+                )
+                return False
+
+        except ConnectionError as e:
+            logger.error(
+                f"Connection error updating prompt for {agent_name}: {e}", exc_info=True
+            )
+            logger.info("Will retry on next hot reload request")
+            return False
+        except Exception as e:
+            logger.error(
+                f"Failed to update prompt for {agent_name}: {e}", exc_info=True
+            )
+            return False
+
+    async def update_all_prompts(self) -> dict[str, bool]:
+        """Update prompts for all registered agents.
+
+        Returns:
+            Mapping of agent name to update success status.
+        """
+        results = {}
+        for agent_name in self.agent_prompt_mapping.keys():
+            results[agent_name] = await self.update_agent_prompt(agent_name)
+
+        success_count = sum(1 for success in results.values() if success)
+        total_count = len(results)
+        logger.info(
+            f"Batch prompt update completed: {success_count}/{total_count} successful"
+        )
+
+        return results
+
+    async def update_prompt_by_key(self, prompt_key: str) -> dict[str, bool]:
+        """Update all agents bound to *prompt_key*.
+
+        Args:
+            prompt_key: The prompt key whose agents should be refreshed.
+
+        Returns:
+            Mapping of agent name to update success status.
+        """
+        results = {}
+        for agent_name, key in self.agent_prompt_mapping.items():
+            if key == prompt_key:
+                results[agent_name] = await self.update_agent_prompt(agent_name)
+
+        if results:
+            success_count = sum(1 for success in results.values() if success)
+            total_count = len(results)
+            logger.info(
+                f"Prompt key update completed ({prompt_key}): {success_count}/{total_count} successful"
+            )
+
+        return results
+
+    def get_agent_prompt_mapping(self) -> dict[str, str]:
+        """Return a copy of the agent-name-to-prompt-key mapping."""
+        return self.agent_prompt_mapping.copy()
+
+
+# Global dynamic agent manager instance
+dynamic_agent_manager = DynamicAgentManager()
+
+
+async def setup_dynamic_agents(mas_instance: Any) -> None:
+    """Set up live-prompt hot-reload for all eligible agents in *mas_instance*.
+
+    Args:
+        mas_instance: The MAS runtime to scan and configure.
+    """
+    logger.debug("Setting up dynamic agents...")
+
+    # Use auto-registration
+    success = dynamic_agent_manager.register_agents_from_mas(mas_instance)
+
+    if success:
+        registered_count = len(dynamic_agent_manager.agent_prompt_mapping)
+        logger.debug(
+            f"Dynamic agent manager setup completed: {registered_count} agents registered"
+        )
+
+        # Print registered agents
+        agent_mapping = dynamic_agent_manager.get_agent_prompt_mapping()
+        for agent_name, prompt_key in agent_mapping.items():
+            logger.debug(f"{agent_name} ↔ {prompt_key}")
+
+        # Auto-save existing agent prompts to database
+        await auto_save_agent_prompts_to_database(mas_instance)
+    else:
+        logger.info("Dynamic agent manager setup failed")
+
+
+async def auto_save_agent_prompts_to_database(mas_instance: Any) -> None:
+    """Persist current agent prompts to ES for first-time setup.
+
+    Skips agents whose prompts already exist in the database.
+
+    Args:
+        mas_instance: The MAS runtime whose agent prompts should be saved.
+    """
+    try:
+        from .manager import get_prompt_manager
+
+        # Use global singleton prompt manager (CRITICAL: ensures cache consistency)
+        manager = await get_prompt_manager()
+
+        # Get existing prompts from database to avoid duplicates
+        existing_prompts = await manager.list_prompts()
+        existing_keys = {prompt.get("prompt_key") for prompt in existing_prompts}
+
+        saved_count = 0
+        skipped_count = 0
+
+        # Save prompts for registered live prompt agents only
+        for agent_name in dynamic_agent_manager.agent_prompt_mapping.keys():
+            agent_instance = mas_instance.oxy_name_to_oxy[agent_name]
+            # Use the prompt_key that was registered (may be custom or default)
+            prompt_key = dynamic_agent_manager.agent_prompt_mapping[agent_name]
+
+            # Skip if prompt already exists in database
+            if prompt_key in existing_keys:
+                skipped_count += 1
+                continue
+
+            # Get agent's current prompt
+            prompt_content = getattr(agent_instance, "prompt", "")
+            if not prompt_content:
+                # Try to get a default prompt or description
+                prompt_content = getattr(
+                    agent_instance, "description", f"Default prompt for {agent_name}"
+                )
+
+            # Determine agent type
+            agent_type = type(agent_instance).__name__
+
+            # Save prompt to database
+            try:
+                success = await manager.save_prompt(
+                    prompt_key=prompt_key,
+                    prompt_content=prompt_content,
+                    agent_type=agent_type,
+                    is_active=True,
+                    version=1,
+                    description=f"Auto-generated prompt for {agent_name}",
+                    category="agent",
+                    created_by="system_auto_setup",
+                )
+
+                if success:
+                    saved_count += 1
+                    logger.info(f"Auto-saved prompt for {agent_name}")
+                else:
+                    logger.warning(f"Failed to save prompt for {agent_name}")
+
+            except Exception as e:
+                logger.error(
+                    f"Error saving prompt for {agent_name}: {e}", exc_info=True
+                )
+
+        if saved_count > 0:
+            logger.info(f"Auto-saved {saved_count} agent prompts to database")
+        if skipped_count > 0:
+            logger.info(f"⏭Skipped {skipped_count} existing prompts")
+
+    except Exception as e:
+        logger.error(f"Failed to auto-save agent prompts: {e}", exc_info=True)
+
+
+# Convenient hot-reload functions
+async def hot_reload_prompt(prompt_key: str) -> bool:
+    """Hot-reload all agents bound to *prompt_key*.
+
+    Args:
+        prompt_key: The prompt key to refresh.
+
+    Returns:
+        True if at least one agent was successfully updated.
+    """
+    results = await dynamic_agent_manager.update_prompt_by_key(prompt_key)
+    return any(results.values()) if results else False
+
+
+async def hot_reload_all_prompts() -> bool:
+    """Hot-reload prompts for every registered agent.
+
+    Returns:
+        True if at least one agent was successfully updated.
+    """
+    results = await dynamic_agent_manager.update_all_prompts()
+    return any(results.values()) if results else False
+
+
+async def hot_reload_agent(agent_name: str) -> bool:
+    """Hot-reload the prompt for a single agent.
+
+    Args:
+        agent_name: Name of the agent to refresh.
+
+    Returns:
+        True if the update succeeded.
+    """
+    return await dynamic_agent_manager.update_agent_prompt(agent_name)

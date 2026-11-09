@@ -1,0 +1,235 @@
+
+.file-upload-area {
+    transition: all 0.3s;
+    position: relative;
+}
+
+
+/* hover 提示信息样式 */
+.file-tooltip {
+    text-align: left;
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    background: #333;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    white-space: nowrap;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.file-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 16px;
+    border: 6px solid transparent;
+    border-top-color: #333;
+}
+
+.file-tooltip-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #fff;
+}
+
+.file-tooltip-description {
+    display: block;
+    font-size: 12px;
+    color: #bbb;
+}
+
+.file-upload-area:hover .file-tooltip {
+    display: block;
+    opacity: 1;
+}
+
+.file-upload-area.highlight {
+    border-color: #1890ff;
+    background-color: #e6f7ff;
+}
+
+.file-list-chat {
+    margin-top: 10px;
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: calc(100% - 15px);
+    max-height: 180px;
+    display: flex;
+    overflow-y: auto;
+}
+
+.file-list {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: calc(100% - 48px);
+    max-height: 180px;
+    display: flex;
+    overflow-y: auto;
+}
+
+.file-item:hover {
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.file-item:hover .file-close {
+    display: block;
+    opacity: 1;
+}
+
+.file-close {
+    display: none;
+    position: absolute;
+    top: 8px;
+    right: 0;
+}
+.file-item {
+    position: relative;
+    align-items: center;
+    display: flex;
+    height: 68px;
+    border-radius: 8px;
+    background: #F3F3F5;
+    padding: 14px;
+    transition: box-shadow .2s ease-in-out;
+}
+
+/* Image thumbnail card variant */
+.file-item-image {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #F3F3F5;
+    flex-shrink: 0;
+    transition: box-shadow .2s ease-in-out;
+}
+
+.file-item-image:hover {
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.file-item-image:hover .file-close {
+    display: flex;
+    opacity: 1;
+}
+
+.file-item-image .file-close {
+    display: none;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.file-item-image .file-close img {
+    width: 12px;
+    height: 12px;
+    filter: brightness(10);
+}
+
+.file-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.file-item-image .file-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 2px 6px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
+    color: #fff;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-info {
+    display: block;
+    margin-left: 8px;
+    margin-right: 20px;
+}
+
+.file-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #000000;
+}
+
+.file-size {
+    color: #E0E0E0;
+}
+
+.file-progress {
+    width: 100%;
+    height: 5px;
+    background-color: #f0f0f0;
+    margin-top: 5px;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.file-progress-bar {
+    height: 100%;
+    background-color: #52c41a;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.upload-status {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.status-success {
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    color: #52c41a;
+}
+
+.status-error {
+    background-color: #fff2f0;
+    border: 1px solid #ffccc7;
+    color: #f5222d;
+}
+
+/* Image thumbnail in chat bubble */
+.file-item-image-chat {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.file-item-image-chat .file-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 8px;
+}

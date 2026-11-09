@@ -1,0 +1,4082 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <!-- 强制不缓存的 meta 标签 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="shortcut icon" href="./image/group-favicon.png" type="image/x-icon">
+    <title>OxyGent App</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="./css/main.css"/>
+    <link rel="stylesheet" href="./css/tree.css"/>
+    <link rel="stylesheet" href="./css/cascader.css"/>
+    <link rel="stylesheet" href="./css/file.css"/>
+    <link rel="stylesheet" href="./css/agent-list.css"/>
+    <link rel="stylesheet" href="./css/timeline.css"/>
+    <link rel="stylesheet" href="./css/guide.css"/>
+    <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="./js/utils.js"></script>
+    <script src="./js/marked.min.js"></script>
+    <script src="./js/agent_tree.js"></script>
+    <script src="./js/cascader.js"></script>
+    <script src="./js/upload.js"></script>
+    <script src="./js/message.js"></script>
+    <script src="./js/timeline.js"></script>
+</head>
+<body class="timeline-hidden tracegraph-hidden">
+<div class="header">
+    <div class="header-left">
+        <img class="header-left-img" src="./image/group-favicon.png" alt="">
+        <!--        <div class="operate">-->
+        <!--            <button onclick="save_historys()">save</button>-->
+        <!--            <div class="nice-select">-->
+        <!--                <input id="customerId" type="text" oninput="searchList(this.value)"/>-->
+        <!--                <ul id="list"></ul>-->
+        <!--            </div>-->
+        <!--        </div>-->
+        <div class="cascader">
+            <input type="file" id="fileInput" accept=".json" style="display: none;">
+            <div class="cascader-container">
+                <div class="cascader-input" id="cascaderInput">
+                    <span class="cascader-input-placeholder">File</span>
+                    <img class="arrow" src="image/group-down.svg"/>
+                </div>
+                <div class="cascader-dropdown" id="cascaderDropdown">
+                    <div class="cascader-menus"></div>
+                </div>
+            </div>
+        </div>
+        <button class="btn-nav-toggle" onclick="window.open('history.html', '_blank')" title="Conversation History">
+            <img src="./image/history.svg" alt="History"/>
+            History
+        </button>
+        <button class="btn-nav-toggle" onclick="window.open('prompts.html', '_blank')" title="Prompt Management">
+            <img src="./image/prompt.svg" alt="Prompts"/>
+            Prompts
+        </button>
+        <button class="btn-nav-toggle" onclick="startGuideTour()" title="Feature Guide">
+            <img src="./image/guide.svg" alt="Guide"/>
+            Guide
+        </button>
+    </div>
+    <div id="header_title_id" class="header-title"></div>
+    <div class="header-right">
+        <div class="control">
+            <button onclick="begin()">
+                <img src="./image/arrow-left-double.svg" alt=""/>
+            </button>
+            <button onclick="back()">
+                <img src="./image/arrow-left.svg" alt=""/>
+            </button>
+
+            <button data-status="play" id="play" onclick="play()">
+                <img src="./image/play.svg" alt=""/>
+            </button>
+
+            <button onclick="next()">
+                <img src="./image/arrow-right.svg" alt=""/>
+            </button>
+            <button onclick="end()">
+                <img src="./image/arrow-right-double.svg" alt=""/>
+            </button>
+            <div id="step"></div>
+        </div>
+        <button class="btn-timeline-toggle" id="btn-timeline-toggle" onclick="toggleTimeline()" title="Toggle Steps">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,9 7,5 11,9"/></svg>
+            <span class="btn-toggle-label">Steps</span>
+        </button>
+        <button class="btn-tracegraph-toggle" id="btn-tracegraph-toggle" onclick="toggleTraceGraph()" title="Toggle Trace Graph">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,9 7,5 11,9"/></svg>
+            <span class="btn-toggle-label">Trace Graph</span>
+        </button>
+        <!--        todo  中英文  主题-->
+        <!--                <div class="global-buttons">-->
+        <!--                    <button class="btn-theme">-->
+        <!--                        <img src="./image/global-language.svg" alt="">-->
+        <!--                    </button>-->
+        <!--                    <button class="btn-language">-->
+        <!--                        <img src="./image/global-theme.svg" alt="">-->
+        <!--                    </button>  -->
+        <!--                </div>-->
+    </div>
+</div>
+<!-- Timeline Section -->
+<div class="timeline-section collapsed" id="timeline-section">
+    <div id="timeline-bar" class="timeline-bar">
+        <div class="branch-selector" id="branch-selector"></div>
+        <div class="timeline-track-wrapper" id="timeline-track-wrapper">
+            <div class="timeline-track" id="timeline-track"></div>
+        </div>
+    </div>
+</div>
+<!-- Trace Graph Section (branch tree visualization) -->
+<div class="tracegraph-section collapsed" id="tracegraph-section">
+    <div class="tracegraph-bar">
+        <div class="tracegraph-body" id="tracegraph-body">
+            <div class="tg-empty">No branches yet.</div>
+        </div>
+        <div class="tracegraph-resize-handle" id="tracegraph-resize-handle"></div>
+    </div>
+</div>
+<div class="container">
+    <div class="center">
+        <div class="center-scroll xMind">
+            <div id="org-zoom-wrapper"></div>
+        </div>
+        <div id="org-minimap">
+            <canvas id="org-minimap-canvas" width="150" height="100"></canvas>
+            <div id="org-minimap-viewport"></div>
+        </div>
+        <div id="org-zoom-controls">
+            <button id="org-zoom-out" title="Zoom out">&minus;</button>
+            <span id="org-zoom-level">100%</span>
+            <button id="org-zoom-in" title="Zoom in">+</button>
+            <button id="org-zoom-reset" title="Reset zoom">&#x27F2;</button>
+        </div>
+    </div>
+    <div class="left">
+        <div class="left_bottom">
+            <div class="chat-container">
+                <div id="chat_title">
+                    Playground
+                </div>
+                <div class="chat_toggle_group">
+                    <button id="message_group" onclick="openRight()">
+                        <img src="./image/group-vector-default.svg" alt=""/>
+                    </button>
+                </div>
+            </div>
+
+            <div id="chat_history">
+                <ul class="content" id="chatbox">
+                </ul>
+            </div>
+            <div id="chat_send">
+                <!-- <div class="file-list" id="fileList"><div class="file-item">
+                        <div class="file-icon">
+                            <img src="./image/video.svg" alt="">
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">Group-favicon.png</div>
+                            <div class="file-size">644 BytesKB</div>
+                        </div>
+                        <div class="file-close" data-id="Group-favicon.png">
+                            <img src="./image/group_close.svg" alt="#">
+                        </div>
+
+                    </div></div> -->
+                <div class="file-list" id="fileList"></div>
+                <!-- <div class="chat-agent-list">
+                    <div class="chat-agent-item">
+                        <div class="chat-agent-info">
+                            <div class="chat-agent-name"><span>@</span>master</div>
+                        </div>
+                        <div class="chat-agent-close" data-id="Group-favicon.png">
+                            <img src="./image/group_close.svg" alt="#">
+                        </div>
+                    </div>
+                </div> -->
+                <div class="chat-agent-list" id="chatAgentList" style="display:none;"></div>
+
+                <!-- agentlist popup -->
+                <div id="chat-at-list-container-id" class="chat-at-list-container">
+                    <div class="chat-at-list-title">Agents</div>
+                    <ul id="chatAtListId" class="chat-at-list"></ul>
+                </div>
+
+                <div id="message_input_wrap">
+                    <textarea id="message_input" rows="1" placeholder="Ask me anything here."></textarea>
+                </div>
+                <button class="file-upload-area" id="message_addtional">
+                    <input
+                        type="file"
+                        id="fileAddtional"
+                        multiple
+                        accept=".txt,.jpg,.jpeg,.png,.mp4,.xlsx,.xls,.doc,.docx,.pdf,.csv,.tsv,.ods,.py,.md,.json"
+                        style="display: none;"
+                    >
+                    <img src="./image/group_addtion.svg" alt=""/>
+                    <span class="file-tooltip">
+                        <span class="file-tooltip-title"> Upload attachments </span>
+                        <span class="file-tooltip-description">Max 10, 10MB each. Images, videos and table files are supported.</span>
+                    </span>
+                </button>
+                <button class="json-editor-btn" id="json_editor_toggle" onclick="toggleJsonEditor()">
+                    <img src="./image/json.svg" alt="JSON"/>
+                </button>
+                <button class="querys-btn" id="querys_toggle" style="display:none;" onclick="toggleQuerysPanel()">
+                    <img src="./image/querys.svg" alt="Querys"/>
+                </button>
+                <!-- Querys Panel -->
+                <div class="querys-panel" id="querys_panel" style="display:none;">
+                    <div class="querys-panel-header">
+                        <span class="querys-panel-title">Queries</span>
+                    </div>
+                    <ul class="querys-list" id="querys_list"></ul>
+                </div>
+                <!-- JSON Editor Panel -->
+                <div class="json-editor-panel" id="json_editor_panel" style="display:none;">
+                    <div class="json-editor-header">
+                        <span class="json-editor-title">Request Data</span>
+                    </div>
+                    <div class="json-editor-body">
+                        <div class="json-editor-field">
+                            <label>shared_data</label>
+                            <textarea id="json_shared_data" rows="6" spellcheck="false"></textarea>
+                            <div class="json-editor-error" id="json_shared_data_error"></div>
+                        </div>
+                        <div class="json-editor-field">
+                            <label>group_data</label>
+                            <textarea id="json_group_data" rows="6" spellcheck="false"></textarea>
+                            <div class="json-editor-error" id="json_group_data_error"></div>
+                        </div>
+                    </div>
+                    <div class="json-editor-footer">
+                        <button class="json-editor-btn-clear" onclick="clearJsonEditor()">Clear</button>
+                        <button class="json-editor-btn-cancel" onclick="cancelJsonEditor()">Cancel</button>
+                        <button class="json-editor-btn-apply" onclick="applyJsonEditor()">Apply</button>
+                    </div>
+                </div>
+                <button id="message_send" onclick="send_message()">
+                    <img src="./image/up_arrow.svg" alt=""/>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="resize-handle" id="rightResizeHandle"></div>
+    <div class="right" id="rightId">
+        <div class="right-container">
+            <div id="agent_log">
+                <div class="agent-empty">
+                    <img class="empty-img" src="./image/empty.svg" alt="">
+                </div>
+            </div>
+                <button id="agent_log_close_id" onclick="closeRight()">
+                    <img src="./image/group_close.svg" alt=""/>
+                </button>
+        </div>
+
+    </div>
+</div>
+
+<!-- 编辑并重跑 模态框 -->
+<div id="restart-modal" class="restart-modal-overlay" style="display:none;">
+    <div class="restart-modal">
+        <div class="restart-modal-header">
+            <span>Edit Node Output & Restart</span>
+            <button type="button" class="restart-modal-close">&times;</button>
+        </div>
+        <div class="restart-modal-body">
+            <div class="restart-modal-hint">
+                Modify the output below, then restart inference from this node:
+            </div>
+            <textarea id="restart-output-editor" rows="12" spellcheck="false"></textarea>
+        </div>
+        <div class="restart-modal-footer">
+            <button type="button" id="restart-modal-cancel">Cancel</button>
+            <button type="button" id="restart-modal-confirm">Confirm & Restart</button>
+        </div>
+    </div>
+</div>
+
+<!-- Feature Guide Tour Overlay -->
+<div class="tour-mask" id="tour-mask">
+    <div class="tour-spotlight" id="tour-spotlight"></div>
+    <div class="tour-tooltip" id="tour-tooltip">
+        <div class="tour-tooltip-icon" id="tour-icon"></div>
+        <div class="tour-tooltip-title" id="tour-title"></div>
+        <div class="tour-tooltip-desc" id="tour-desc"></div>
+        <div class="tour-tooltip-step">
+            <span class="tour-tooltip-counter" id="tour-counter"></span>
+            <div class="tour-tooltip-nav">
+                <button class="tour-tooltip-btn" id="tour-skip-btn" onclick="endGuideTour()">Skip</button>
+                <button class="tour-tooltip-btn primary" id="tour-next-btn" onclick="nextGuideTourStep()">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+<script>
+    var ws = null;
+    var from_trace_id = "";
+    var first_chat = "How may I support your request today?";
+
+    var last_tool_call_path = [];
+    var last_tool_call_name = "";
+    var llm_is_work = false;
+    var chats = [];
+    var plan_dict = {};
+    var nodeContentMap = {};
+    var tool_calls = [];
+    var show_id = 0;
+    var traceGraphTurnIndex = 0;  // incremented on each new question
+
+    // ── Branching history system ──
+    var branches = [];
+    var activeBranchId = null;
+    var branchCounter = 0;
+
+    function getActiveBranch() {
+        return branches.find(function(b) { return b.id === activeBranchId; });
+    }
+    function getActiveFrames() {
+        var b = getActiveBranch();
+        return b ? b.frames : [];
+    }
+
+    function syncChatsFromFrame(frame) {
+        if (frame && frame.answer) {
+            chats = JSON.parse(JSON.stringify(frame.answer));
+        }
+    }
+
+    function createBranch(parentBranchId, forkFrameIndex) {
+        branchCounter++;
+        var b = {
+            id: "branch_" + branchCounter,
+            label: "Branch " + branchCounter,
+            parentBranchId: parentBranchId,
+            forkFrameIndex: forkFrameIndex,
+            traceId: "",
+            frames: []
+        };
+        branches.push(b);
+        activeBranchId = b.id;
+        show_id = 0;
+        return b;
+    }
+
+    function switchBranch(branchId) {
+        if (llm_is_work) return;
+        var b = branches.find(function(x) { return x.id === branchId; });
+        if (!b) return;
+        activeBranchId = b.id;
+        show_id = Math.max(0, b.frames.length - 1);
+        from_trace_id = b.traceId || "";
+        if (b.frames.length > 0) {
+            syncChatsFromFrame(b.frames[show_id]);
+        }
+        no_change_history = false;
+        renderTraceGraph();
+        renderTimeline();
+        show_step();
+        if (b.frames.length > 0) {
+            show_by_history(b.frames[show_id]);
+        }
+    }
+
+    function renderBranchSelector() {
+        var container = document.getElementById('branch-selector');
+        if (!container) return;
+        container.innerHTML = '';
+        if (branches.length <= 1) return; // hide selector when only 1 branch
+        branches.forEach(function(b) {
+            var pill = document.createElement('button');
+            pill.className = 'branch-pill' + (b.id === activeBranchId ? ' active' : '')
+                + (llm_is_work ? ' disabled' : '');
+            pill.textContent = b.label;
+            pill.title = b.traceId ? ('trace: ' + b.traceId) : b.label;
+            pill.addEventListener('click', function() { switchBranch(b.id); });
+            container.appendChild(pill);
+        });
+    }
+
+    function serializeSession() {
+        return {
+            version: 2,
+            branches: branches,
+            activeBranchId: activeBranchId,
+            branchCounter: branchCounter,
+            traceGraphData: traceGraphData,
+            nodeCopiedIdMap: nodeCopiedIdMap,
+            traceGraphTurnIndex: traceGraphTurnIndex,
+            from_trace_id: from_trace_id
+        };
+    }
+
+    function deserializeSession(data) {
+        clearInterval(interval_id);
+        $("#play").html('<img src="./image/play.svg" alt="" />');
+        $("#play")[0].setAttribute('data-status', 'play');
+
+        if (data && data.version === 2 && data.branches) {
+            branches = data.branches;
+            activeBranchId = data.activeBranchId;
+            branchCounter = data.branchCounter;
+            traceGraphData = data.traceGraphData || {};
+            nodeCopiedIdMap = data.nodeCopiedIdMap || {};
+            traceGraphTurnIndex = data.traceGraphTurnIndex || 0;
+            from_trace_id = data.from_trace_id || "";
+            replayHighlightIds = new Set();
+        } else {
+            var framesList = Array.isArray(data) ? data : [];
+            branches = [];
+            branchCounter = 0;
+            activeBranchId = null;
+            traceGraphReset();
+            var rootBranch = createBranch(null, null);
+            rootBranch.frames = framesList;
+        }
+
+        chats = [];
+        plan_dict = {};
+        nodeContentMap = {};
+        init_organization();
+        begin();
+        renderTimeline();
+        renderTraceGraph();
+        no_change_history = false;
+    }
+
+    var agent_id_dict = {};
+    var agent_organization = {};
+    var current_streaming_agent = null; // 当前正在流式输出的agent名称（向后兼容）
+    var current_streaming_element = null; // 当前正在流式输出的DOM元素（向后兼容）
+    var streaming_elements_map = {}; // 存储不同node_id对应的流式输出元素 {node_id: {agent, element}}
+
+    var master_agent_name = "master_agent";
+    var div_right = $("#agent_log");
+    // Coalesce rapid right-panel scroll requests (cached ReRun nodes, fast LLM
+    // bursts) so animations don't stack and keep playing after the stream ends.
+    // A short debounce groups same-burst events; stop() cancels the in-flight
+    // animation so each rebuild gets exactly one smooth scroll to the bottom.
+    var _rightScrollTimer = null;
+    function scrollRightPanelToBottom() {
+        if (!div_right || !div_right[0]) return;
+        if (_rightScrollTimer) clearTimeout(_rightScrollTimer);
+        _rightScrollTimer = setTimeout(function () {
+            _rightScrollTimer = null;
+            if (!div_right[0]) return;
+            div_right.stop(true, false);
+            div_right.animate({ scrollTop: div_right[0].scrollHeight }, 300);
+        }, 80);
+    }
+    var div_chat_history = $("#chat_history");
+    var div_chatbox = $("#chatbox");
+    var div_org = $("#org-zoom-wrapper");
+    var interval_id = null;
+    var no_change_history = true;
+    var now_script_id = '';
+
+    var node_state = {};
+    var eventSource = null;
+    var _cascader = null
+
+    // JSON editor state for shared_data / group_data
+    var chatSharedData = {};
+    var chatGroupData = {};
+
+    const agentImgMap = [
+        {bgColor: '#FEEAD4', color: '#7d4303', imgUrl: './image/agents/agent_0.png'},
+        {bgColor: '#E4FBCC', color: '#417609', imgUrl: './image/agents/agent_1.png'},
+        {bgColor: '#D3F8DF', color: '#116e30', imgUrl: './image/agents/agent_2.png'},
+        {bgColor: '#E0F2FE', color: '#044c7c', imgUrl: './image/agents/agent_3.png'},
+        {bgColor: '#E0EAFF', color: '#002980', imgUrl: './image/agents/agent_4.png'},
+        {bgColor: '#EFF1F5', color: '#313b4e', imgUrl: './image/agents/agent_5.png'},
+        {bgColor: '#FBE8FF', color: '#690080', imgUrl: './image/agents/agent_6.png'},
+        {bgColor: '#FBE7F6', color: '#6d1257', imgUrl: './image/agents/agent_7.png'},
+        {bgColor: '#FEF7C4', color: '#7d6e02', imgUrl: './image/agents/agent_8.png'},
+        {bgColor: '#E6F4D7', color: '#41641b', imgUrl: './image/agents/agent_9.png'},
+        {bgColor: '#D5F5F6', color: '#166669', imgUrl: './image/agents/agent_10.png'},
+        {bgColor: '#D2E9FF', color: '#004180', imgUrl: './image/agents/agent_11.png'},
+        {bgColor: '#D1DFFF', color: '#002780', imgUrl: './image/agents/agent_12.png'},
+        {bgColor: '#D5D9EB', color: '#293156', imgUrl: './image/agents/agent_13.png'},
+        {bgColor: '#EBE9FE', color: '#11067a', imgUrl: './image/agents/agent_14.png'},
+        {bgColor: '#FFE4E8', color: '#800013', imgUrl: './image/agents/agent_15.png'},
+    ];
+
+    // 聊天界面的文件上传信息
+    var filesToUpload = [];
+
+    var argentName = '';
+
+    (function () {
+    // 使用 sessionStorage 避免刷新死循环
+    if (!sessionStorage.getItem('page_refreshed')) {
+        sessionStorage.setItem('page_refreshed', '1');
+
+        /* 为当前 URL 加上时间戳参数，触发浏览器向服务器重新拉取最新资源 */
+        const url = new URL(location.href);
+        url.searchParams.set('_', Date.now());
+        location.replace(url.toString());          // 强制重新加载一次
+    }
+    })();
+
+    function sha256(ascii) {
+        function rightRotate(v, amount) {
+            return (v >>> amount) | (v << (32 - amount));
+        }
+
+        var mathPow = Math.pow, max = Math.max, imul = Math.imul;
+        var result = '', i, j;
+        var asciiBitLength = ascii.length * 8;
+        var hash = [], k = [];
+        var primeCounter = 0;
+
+        function isPrime(n) {
+            if (n < 2) return false;
+            for (var i = 2; i * i <= n; i++) if (n % i === 0) return false;
+            return true;
+        }
+
+        for (var candidate = 2; primeCounter < 64; candidate++) {
+            if (isPrime(candidate)) {
+                hash[primeCounter] = (mathPow(candidate, .5) * 4294967296) | 0;
+                k[primeCounter++] = (mathPow(candidate, 1 / 3) * 4294967296) | 0;
+            }
+        }
+        ascii += '\x80'
+        while (ascii.length % 64 - 56) ascii += '\x00'
+        for (i = 0; i < ascii.length; i++) asciiBitLength += ascii.charCodeAt(i) << ((i % 4) * 8);
+        var w = [];
+        for (i = 0; i < ascii.length;) {
+            var j = 0;
+            for (; j < 16; j++) w[j] = (ascii.charCodeAt(i++) << 24) | (ascii.charCodeAt(i++) << 16) | (ascii.charCodeAt(i++) << 8) | (ascii.charCodeAt(i++));
+            for (; j < 64; j++) w[j] = (rightRotate(w[j - 2], 17) ^ rightRotate(w[j - 2], 19) ^ (w[j - 2] >>> 10) + w[j - 7] + rightRotate(w[j - 15], 7) ^ rightRotate(w[j - 15], 18) ^ (w[j - 15] >>> 3) + w[j - 16]) | 0;
+            var a = hash[0], b = hash[1], c = hash[2], d = hash[3], e = hash[4], f = hash[5], g = hash[6], h = hash[7];
+            for (j = 0; j < 64; j++) {
+                var t1 = h + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) + ((e & f) ^ ((~e) & g)) + k[j] + w[j];
+                var t2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
+                h = g;
+                g = f;
+                f = e;
+                e = (d + t1) | 0;
+                d = c;
+                c = b;
+                b = a;
+                a = (t1 + t2) | 0;
+            }
+            hash[0] = (hash[0] + a) | 0;
+            hash[1] = (hash[1] + b) | 0;
+            hash[2] = (hash[2] + c) | 0;
+            hash[3] = (hash[3] + d) | 0;
+            hash[4] = (hash[4] + e) | 0;
+            hash[5] = (hash[5] + f) | 0;
+            hash[6] = (hash[6] + g) | 0;
+            hash[7] = (hash[7] + h) | 0;
+        }
+        for (i = 0; i < hash.length; i++) for (j = 3; j + 1; j--) {
+            var b = (hash[i] >> (j * 8)) & 255;
+            result += ((b >> 4).toString(16)) + ((b & 15).toString(16));
+        }
+        return result;
+    }
+
+    function encodeList(list, length = 16) {
+        const str = JSON.stringify(list);
+        const hash = sha256(str);
+        // console.log('encodeList', list, str, hash.slice(0, length));
+        return hash.slice(0, length);
+    }
+
+    const id_to_color = {
+        0: "#54bce8",
+        1: "#e854bb",
+        2: "#bbe854",
+        3: "#e88054",
+        4: "#54e8ca",
+        5: "#8054e8",
+        6: "#5471e8",
+        7: "#e85471",
+        8: "#71e854",
+        9: "#ca54e8",
+        10: "#e8ca54",
+        11: "#54e880",
+    };
+
+    $(document).ready(function () {
+        var ajax1 = $.ajax({ url: "../get_organization", type: "GET" });
+        var ajax2 = $.ajax({ url: "../get_welcome_message", type: "GET" });
+        $.when(ajax1, ajax2).done(function(result1, result2) {
+            var response1 = result1[0];
+            var response2 = result2[0];
+
+            agent_id_dict = response1.data.id_dict;
+            agent_organization = response1.data.organization;
+            master_agent_name = response1.data.organization.name;
+
+            first_chat = response2.data.welcome_message;
+            init_chat_box();
+            init_organization();
+            renderChatAtAgentList();
+        });
+        // $.ajax({
+        //     type: "GET",
+        //     url: "../get_organization",
+        //     success: function (response) {
+        //         response = response.data;
+        //         // console.log('response', response);
+        //         agent_id_dict = response.id_dict;
+        //         agent_organization = response.organization;
+        //         master_agent_name = response.organization.name;
+        //         $.ajax({
+        //             type: "GET",
+        //             url: "../get_welcome_message",
+        //             success: function (response) {
+        //                 first_chat = response.data.welcome_message;
+        //                 init_chat_box();
+        //                 init_organization();
+        //                 renderChatAtAgentList();
+        //             }
+        //         })
+        //     }
+        // })
+        $.ajax({
+            type: "GET",
+            url: "../get_first_query",
+            success: function (response) {
+                // console.log('first_query', response);
+                var fq = response.data.first_query;
+                if (fq) {
+                    if (Array.isArray(fq)) {
+                        querysList = fq;
+                        $("#message_input").val(fq[0]);
+                    } else {
+                        querysList = [fq];
+                        $("#message_input").val(fq);
+                    }
+                    $("#message_send").addClass('message_send_active');
+                    var el = document.getElementById('message_input');
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                    $("#querys_toggle").show();
+                }
+                if (response.data.shared_data) {
+                    chatSharedData = response.data.shared_data;
+                }
+                if (response.data.group_data) {
+                    chatGroupData = response.data.group_data;
+                }
+            }
+        })
+        $("#message_input").keydown(function (event) {
+            if (event.keyCode === 13 && !event.shiftKey) {
+                event.preventDefault();
+                send_message();
+            }
+        });
+
+        $('#message_input').on('input', function () {
+            // Auto-resize textarea height
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+
+            const val = $(this).val();
+            if (val) {
+                $("#message_send").addClass('message_send_active'); // 有值时背景色为蓝色
+                if (val.indexOf('@') > -1) {
+                    // 把当前的输入@删除保留其他的输入项，只删除@这个字符
+                    const inputVal = val.replace('@', '');
+                    $('#message_input').val(inputVal);
+
+                    var $element = $('#message_input');
+                    var elTop = $element.offset().top;
+                    var distanceFromLeft = $element.offset().left;
+                    const marginLeftValue = getTextWidth(inputVal);
+                    // 显示chat list — 定位到输入框正上方
+                    $('#chat-at-list-container-id').css({
+                        bottom: ($(window).height() - elTop + 8) + 'px',
+                        left: (distanceFromLeft + marginLeftValue) + 'px',
+                    });
+                    $('#chat-at-list-container-id').show();
+
+                }
+            } else {
+                if($("#message_send").hasClass('message_send_active')) {
+                    $("#message_send").removeClass('message_send_active'); // 无值时背景色为白色
+                }
+            }
+        });
+
+
+        // $(".nice-select").click(function (e) {
+        //     $(this).find("ul").show();
+        //     e.stopPropagation();
+        // });
+
+        // $('#list').delegate('li', 'mouseover mouseout', function (e) {
+        //     $(this).toggleClass("on");
+        //     e.stopPropagation();
+        // });
+
+        // $('#list').delegate('li', 'click', function (e) {
+        //     var val = $(this).text();
+        //     $(".nice-select").find("input").val(val);
+        //     $(".nice-select").find("ul").hide();
+        //     e.stopPropagation();
+        //     load_historys(val);
+        // });
+
+        // $(document).click(function () {
+        //     $(".nice-select").find("ul").hide();
+        // });
+
+        list_historys();
+        renderHeaderTitle()
+    });
+
+    function renderHeaderTitle(id) {
+        // 如果为空生成一个
+        if (!id) {
+            now_script_id = generateScriptId();
+        }
+        $("#header_title_id").text(`${now_script_id}.json`);
+    }
+
+    function add_tool_call(arr) {
+        tool_calls.push([...arr]); // 存入新数组，深拷贝
+    }
+
+    // 删除某个数组（根据数组内容删除）
+    function remove_tool_call(arr) {
+        // 找到和arr内容完全一样的数组的索引
+        const index = tool_calls.findIndex(item =>
+            item.length === arr.length && item.every((v, i) => v === arr[i])
+        );
+        if (index !== -1) {
+            tool_calls.splice(index, 1);
+            return true; // 删除成功
+        }
+        return false; // 没找到
+    }
+
+    // 查看当前所有数组
+    function get_all_tool_calls() {
+        return tool_calls.map(arr => [...arr]); // 返回拷贝，防止外部修改
+    }
+
+    function getNodeColors(tool_calls) {
+        const nodeColors = {};
+        const childrenSet = new Set();
+
+        for (const path of tool_calls) {
+            let parent = [];
+            for (let i = 0; i < path.length; i++) {
+                const node = path[i];
+                const current = parent.concat([node]);
+                const nodeKey = encodeList(current);
+
+                if (!(nodeKey in nodeColors)) {
+                    nodeColors[nodeKey] = 'red'; // 默认叶子
+                }
+                if (parent.length > 0) {
+                    childrenSet.add(encodeList(parent));
+                }
+                parent = current;
+            }
+        }
+
+        for (const key of childrenSet) {
+            nodeColors[key] = 'yellow';
+        }
+        return nodeColors;
+    }
+
+    function diffNodeColors(node_state, new_node_state) {
+        const result = {};
+        // 所有涉及到的节点
+        const allNodes = new Set([
+            ...Object.keys(node_state),
+            ...Object.keys(new_node_state)
+        ]);
+
+        allNodes.forEach(node => {
+            const oldColor = node_state[node];
+            const newColor = new_node_state[node];
+
+            if (newColor === undefined) {
+                // 新状态没有这个节点，且之前是红或黄，需要变成白色
+                if (oldColor === 'red' || oldColor === 'yellow') {
+                    result[node] = 'white';
+                }
+            } else if (oldColor !== newColor) {
+                // 颜色发生变化
+                result[node] = newColor;
+            }
+            // 颜色相同，不输出
+        });
+
+        return result;
+    }
+
+    function push_plan(caller, type, content, node_id = '', callee, callee_category = '') {
+        if (!plan_dict.hasOwnProperty(caller)) {
+            plan_dict[caller] = {
+                "agent_name": caller,
+                "job_desc": "",
+                "intention": "",
+                "plannings": [],
+                "answer": ""
+            };
+        }
+        if (type === "observation" || type === "plan") {
+            plan_dict[caller]["plannings"].push({
+                "callee": callee,
+                "type": type,
+                "content": content,
+                "node_id": node_id,
+                "callee_category": callee_category
+            });
+        } else {
+            plan_dict[caller][type] = content;
+        }
+        // console.log(plan_dict);
+    }
+
+    function message_handler(message) {
+        // console.log(message)
+        if (message.startsWith("服务器")) {
+            console.log(message);
+            return;
+        }
+        let jm = JSON.parse(message);
+        
+        // 处理流式输出消息
+        if (jm["type"] === "stream") {
+            handle_stream_message(jm);
+            return;
+        }
+
+        if (jm["type"] === "organization_updated") {
+            refresh_organization();
+            return;
+        }
+
+        if (jm["type"] === "re_run" || jm["type"] === "rerun") {
+            var frames = getActiveFrames();
+            var history = {};
+            if (frames.length > 0) {
+                history = JSON.parse(JSON.stringify(frames[frames.length - 1]));
+            }
+            chats.push({"role": "__rerun_divider__", "content": "ReRun"});
+            history["answer"] = JSON.parse(JSON.stringify(chats));
+            show_by_history(history);
+            frames.push(history);
+            show_id = frames.length - 1;
+            show_step();
+            appendTimelineFrame(history, frames.length - 1);
+            return;
+        }
+
+        if (!["tool_call", "observation"].includes(jm["type"])) {
+            return;
+        }
+
+        console.log(getActiveFrames().length + 1, JSON.parse(JSON.stringify(jm)));
+
+        var frames = getActiveFrames();
+        var history = {};
+        if (frames.length > 0) {
+            history = JSON.parse(JSON.stringify(frames[frames.length - 1]));
+        }
+
+        if (jm["type"] == "tool_call") {
+            var _cc = jm["content"];
+            var isCachedReplay = _cc && _cc["copied_node_id"];
+
+            if (isCachedReplay) {
+                // Cached/replayed node during ReRun: track the copied_node_id
+                // mapping and highlight the original node in the parent branch.
+                // Do NOT add to traceGraphData (the parent branch already has it)
+                // or create streaming elements (no streaming data will follow).
+                nodeCopiedIdMap[_cc["node_id"]] = _cc["copied_node_id"];
+                if (llm_is_work) {
+                    traceGraphHighlightReplay(_cc["copied_node_id"]);
+                }
+                return;
+            }
+
+            // Feed LLM/tool nodes into the Trace Graph tree.
+            if (_cc && (_cc["callee_category"] === 'llm' || _cc["callee_category"] === 'tool')) {
+                traceGraphAddNode({
+                    node_id: _cc["node_id"],
+                    copied_node_id: _cc["copied_node_id"] || '',
+                    node_type: _cc["callee_category"],
+                    caller: _cc["caller"] || '',
+                    callee: _cc["callee"] || '',
+                    trace_id: _cc["current_trace_id"] || _cc["trace_id"] || ''
+                });
+            }
+            // Set traceId on the active branch.
+            if (_cc && (_cc["current_trace_id"] || _cc["trace_id"])) {
+                traceGraphSetTrace(_cc["current_trace_id"] || _cc["trace_id"]);
+            }
+
+            if (jm["content"]["callee_category"] === 'agent') {
+                push_plan(jm["content"]["callee"], "job_desc", jm["content"].arguments.query, jm["content"].node_id);
+                history["agent_log"] = JSON.parse(JSON.stringify(plan_dict[jm["content"]["callee"]]));
+            }
+
+            if (jm["content"]["callee_category"] === 'agent' || jm["content"]["callee_category"] === 'tool' || jm["content"]["callee_category"] === 'bank') {
+                add_tool_call(jm["content"]["call_stack"].slice(1));
+                history["tool_call"] = getNodeColors(get_all_tool_calls());
+            }
+
+            if (jm["content"]["caller_category"] === 'agent' && jm["content"]["callee_category"] === 'agent') {
+                var msg = {
+                    "role": jm["content"].caller,
+                    "content": jm["content"].arguments.query,
+                    "at": jm["content"].callee
+                };
+                chats.push(msg);
+                history["answer"] = JSON.parse(JSON.stringify(chats));
+            } else if (jm["content"]["caller_category"] === 'agent' && jm["content"]["callee_category"] === 'llm') {
+                // 开始调用llm，准备流式输出
+                current_streaming_agent = jm["content"]["caller"];
+                var node_id = jm["content"]["node_id"];
+                // 创建流式输出的消息元素
+                create_streaming_message_element(current_streaming_agent, node_id);
+                return;
+            }
+        }
+
+        if (jm["type"] == "observation") {
+            // Track copied_node_id from ALL observations (including cached/replayed nodes
+            // that don't get a tool_call message and thus aren't in traceGraphData).
+            var _oc = jm["content"];
+            if (_oc && _oc["node_id"] && _oc["copied_node_id"]) {
+                nodeCopiedIdMap[_oc["node_id"]] = _oc["copied_node_id"];
+                // During a ReRun, highlight the original node being replayed
+                if (llm_is_work) {
+                    traceGraphHighlightReplay(_oc["copied_node_id"]);
+                }
+            }
+
+            if (jm["content"]["caller"] === 'user') {
+                // answer
+                from_trace_id = jm["content"]["current_trace_id"];
+                var activeBranch = getActiveBranch();
+                if (activeBranch) {
+                    activeBranch.traceId = from_trace_id;
+                    renderTraceGraph();
+                }
+                var trace_id = jm["content"]["current_trace_id"] || jm["content"]["trace_id"];
+                var markdownInput = jm["content"]["output"];
+                if (typeof markdownInput !== 'string') {
+                    markdownInput = JSON.stringify(markdownInput, null, 2);
+                }
+                // 如果存在流式输出元素，使用流式输出的内容（可能更完整）
+                // 查找对应的流式输出元素（优先使用node_id，否则使用agent名称）
+                var node_id = jm["content"]["node_id"];
+                var agent_name = jm["content"]["callee"];
+                var key = node_id || agent_name;
+                var streaming_info = streaming_elements_map[key];
+                
+                if (streaming_info && streaming_info.element) {
+                    var finalContent = streaming_info.element.text();
+                    if (finalContent) {
+                        markdownInput = finalContent;
+                    }
+                    // 移除streaming-content类并清理，渲染markdown
+                    streaming_info.element.removeClass("streaming-content").addClass("markdown-body").html(marked.marked(markdownInput));
+                    attach_rating_ui(streaming_info.element.closest("li"), trace_id);
+                    attach_trace_chain(streaming_info.element.closest("li"), trace_id);
+                    delete streaming_elements_map[key];
+                } else if (current_streaming_element && current_streaming_agent) {
+                    // 向后兼容
+                    var finalContent = current_streaming_element.text();
+                    if (finalContent) {
+                        markdownInput = finalContent;
+                    }
+                    // 渲染markdown
+                    current_streaming_element.addClass("markdown-body").html(marked.marked(markdownInput));
+                    attach_rating_ui(current_streaming_element.closest("li"), trace_id);
+                    attach_trace_chain(current_streaming_element.closest("li"), trace_id);
+                }
+                
+                var msg = {"role": jm["content"].callee, "content": markdownInput, "trace_id": trace_id};
+                chats.push(msg);
+                history["answer"] = JSON.parse(JSON.stringify(chats));
+                llm_is_work = false;
+                traceGraphClearReplayHighlights();
+                renderTraceGraph();
+                // $("#message_send").text("Send");
+                // 重置react_memory
+                plan_dict = {};
+                // 流式输出完成，移除streaming-content类（向后兼容）
+                if (current_streaming_element) {
+                    current_streaming_element.removeClass("streaming-content");
+                    current_streaming_element = null;
+                }
+                current_streaming_agent = null;
+                // 清理所有流式输出元素
+                streaming_elements_map = {};
+            } else if (jm["content"]["caller_category"] === 'agent' && jm["content"]["callee_category"] === 'agent') {
+                push_plan(jm["content"]["caller"], "observation", jm["content"].output, jm["content"].node_id, jm["content"]["callee"], jm["content"]["callee_category"]);
+                history["agent_log"] = JSON.parse(JSON.stringify(plan_dict[jm["content"]["caller"]]));
+
+                var msg = {
+                    "role": jm["content"].callee,
+                    "content": jm["content"].output,
+                    "at": jm["content"].caller
+                };
+                chats.push(msg);
+                history["answer"] = JSON.parse(JSON.stringify(chats));
+            } else if (jm["content"]["caller_category"] === 'agent' && jm["content"]["callee_category"] === 'llm') {
+                push_plan(jm["content"]["caller"], "plan", jm["content"].output, jm["content"].node_id, jm["content"]["callee"], jm["content"]["callee_category"]);
+                history["agent_log"] = JSON.parse(JSON.stringify(plan_dict[jm["content"]["caller"]]));
+                // 流式输出完成，移除streaming-content类
+                // 注意：planning内容不保存到chats，只保存到plan_dict
+                var node_id = jm["content"]["node_id"];
+                var key = node_id || jm["content"]["caller"];
+                var streaming_info = streaming_elements_map[key];
+                if (streaming_info && streaming_info.element) {
+                    streaming_info.element.removeClass("streaming-content");
+                    delete streaming_elements_map[key];
+                }
+                // 向后兼容
+                if (current_streaming_element) {
+                    current_streaming_element.removeClass("streaming-content");
+                    current_streaming_element = null;
+                }
+                current_streaming_agent = null;
+            } else if (jm["content"]["caller_category"] === 'agent' && ['tool', 'bank', 'memory_bank'].includes(jm["content"]["callee_category"])) {
+                push_plan(jm["content"]["caller"], "observation", jm["content"].output, jm["content"].node_id, jm["content"]["callee"], jm["content"]["callee_category"]);
+                history["agent_log"] = JSON.parse(JSON.stringify(plan_dict[jm["content"]["caller"]]));
+            }
+
+            if (jm["content"]["callee_category"] === 'agent' || ['tool', 'bank', 'memory_bank'].includes(jm["content"]["callee_category"])) {
+                remove_tool_call(jm["content"]["call_stack"].slice(1));
+                history["tool_call"] = getNodeColors(get_all_tool_calls());
+            }
+        }
+
+        show_by_history(history);
+        frames.push(history);
+        show_id = frames.length - 1;
+        show_step();
+        appendTimelineFrame(history, frames.length - 1);
+    }
+
+    function init_ws() {
+        ws.onopen = function () {
+            ws.send("start");
+        };
+        ws.onmessage = function (event) {
+            message_handler(event.data);
+        };
+        ws.onerror = function (event) {
+            console.log(event);
+            ws.close()
+        };
+        ws.onclose = function () {
+            console.log('close');
+        };
+
+    }
+
+    function refresh_organization() {
+        $.ajax({
+            url: "../get_organization",
+            type: "GET",
+            success: function (response) {
+                agent_id_dict = response.data.id_dict;
+                agent_organization = response.data.organization;
+                var frames = getActiveFrames();
+                if (frames.length > 0) {
+                    frames[0].agent_id_dict = agent_id_dict;
+                    frames[0].agent_organization = agent_organization;
+                }
+                init_organization();
+            }
+        });
+    }
+
+    function init_organization() {
+        agent_id_dict = getActiveFrames()[0].agent_id_dict;
+        var agent_org = getActiveFrames()[0].agent_organization;
+
+        div_org.empty();
+        div_org.HOkrTree({
+            data: [agent_org],
+            itemTemplate: function (data) {
+                const isAgent = data.type === 'agent' || data.type === 'flow';
+                const isRoot = data?.path?.length === 1;
+                const idx = agent_id_dict[data.name] % 16;
+
+                const typeMap = {
+                    tool: './image/org_tool.svg',
+                    model: './image/org_model.svg',
+                    flow: './image/org_flow.svg',
+                    bank: './image/org_knowledge.svg',
+                    memory_bank: './image/org_memory.svg',
+                };
+                const id = encodeList(data.path);
+
+                return `<div
+                        id='${id}'
+                        class='item-template ${isRoot ? '' : 'pre-connector'} ${data?.is_remote ? 'remote' : ''}'
+                    >
+                        <span class='item-template-img ${isAgent ? 'agent' : ''}'>
+                        ${isAgent
+                    ? `<span
+                                    style='${isAgent ? `background-color: ${agentImgMap[idx]?.bgColor}` : ''}'
+                                >
+                                    <img src='${agentImgMap[idx]?.imgUrl}' />
+                                </span>`
+                    : `<img src='${typeMap[data.type]}' />`
+                }
+                        </span>
+                        <span class='item-template-text'>
+                            ${data.name}
+                        </span>
+                        ${data?.children?.length
+                    ? '<div class="expandIcon">-</div>'
+                    : ''
+                }
+                    </div>`;
+            },
+            tagTemplate: function (data) {
+                return ['<div class="item-template" style="background:#fff;border-radius:50px;width:160px;border:solid 1px #ffc107;overflow: hidden;box-shadow: 0px 0px 10px #eee;box-sizing:border-box;"><img style="height:40px;width:40px;border-radius:50%;vertical-align:middle;margin-left:1px;" src="t.png" /><span style="display:inline-block;vertical-align:middle;font-size:12px;margin-left:10px;">', data.name, '</span></div>'].join(" ")
+            }
+        });
+    }
+
+    // ── Zoom & Minimap ──
+    var orgZoomLevel = 1.0;
+    var orgContainer = document.querySelector('.center-scroll');
+    var orgWrapper = document.getElementById('org-zoom-wrapper');
+    var orgMinimapCanvas = document.getElementById('org-minimap-canvas');
+    var orgMinimapViewport = document.getElementById('org-minimap-viewport');
+    var orgZoomLevelSpan = document.getElementById('org-zoom-level');
+
+    function updateOrgZoom() {
+        orgWrapper.style.transform = 'scale(' + orgZoomLevel + ')';
+        orgZoomLevelSpan.textContent = Math.round(orgZoomLevel * 100) + '%';
+        // After scale changes, scroll dimensions change — update minimap after a short delay
+        setTimeout(updateMinimap, 150);
+    }
+
+    function orgZoomIn() {
+        orgZoomLevel = Math.min(1.5, Math.round((orgZoomLevel + 0.1) * 10) / 10);
+        updateOrgZoom();
+    }
+    function orgZoomOut() {
+        orgZoomLevel = Math.max(0.3, Math.round((orgZoomLevel - 0.1) * 10) / 10);
+        updateOrgZoom();
+    }
+    function orgZoomReset() {
+        orgZoomLevel = 1.0;
+        updateOrgZoom();
+    }
+
+    document.getElementById('org-zoom-in').addEventListener('click', orgZoomIn);
+    document.getElementById('org-zoom-out').addEventListener('click', orgZoomOut);
+    document.getElementById('org-zoom-reset').addEventListener('click', orgZoomReset);
+
+    // Ctrl/Cmd + wheel to zoom
+    orgContainer.addEventListener('wheel', function (e) {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            if (e.deltaY < 0) orgZoomIn(); else orgZoomOut();
+        }
+    }, { passive: false });
+
+    // ── Minimap rendering ──
+    function updateMinimap() {
+        var canvas = orgMinimapCanvas;
+        var ctx = canvas.getContext('2d');
+        var cw = canvas.width, ch = canvas.height;
+        ctx.clearRect(0, 0, cw, ch);
+
+        // Content size = wrapper's scrollable extent (unscaled)
+        var contentW = orgWrapper.scrollWidth;
+        var contentH = orgWrapper.scrollHeight;
+        if (contentW === 0 || contentH === 0) return;
+
+        // Scale factor to fit content into minimap
+        var scaleX = cw / contentW;
+        var scaleY = ch / contentH;
+        var scale = Math.min(scaleX, scaleY);
+
+        // Offset to center the drawing in minimap
+        var offX = (cw - contentW * scale) / 2;
+        var offY = (ch - contentH * scale) / 2;
+
+        // Draw each node as a small rectangle
+        var nodes = orgWrapper.querySelectorAll('.item-template');
+        nodes.forEach(function (node) {
+            // Get position relative to wrapper (since wrapper is the offset parent via inline-block)
+            var r = node.getBoundingClientRect();
+            var wr = orgWrapper.getBoundingClientRect();
+            var nx = (r.left - wr.left) / orgZoomLevel;
+            var ny = (r.top - wr.top) / orgZoomLevel;
+            var nw = r.width / orgZoomLevel;
+            var nh = r.height / orgZoomLevel;
+
+            var x = offX + nx * scale;
+            var y = offY + ny * scale;
+            var w = nw * scale;
+            var h = nh * scale;
+
+            if (node.classList.contains('select')) {
+                ctx.fillStyle = '#155EEE';
+                ctx.strokeStyle = '#155EEE';
+                ctx.lineWidth = 0.5;
+            } else if (node.classList.contains('pre-select')) {
+                ctx.fillStyle = '#C5D3E8';
+                ctx.strokeStyle = '#155EEE';
+                ctx.lineWidth = 1.5;
+            } else {
+                ctx.fillStyle = '#C5D3E8';
+                ctx.strokeStyle = '#93A8C9';
+                ctx.lineWidth = 0.5;
+            }
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+        });
+
+        // Update viewport rectangle
+        // Visible area in content coordinates (unscaled)
+        var visW = orgContainer.clientWidth / orgZoomLevel;
+        var visH = orgContainer.clientHeight / orgZoomLevel;
+        var scrollL = orgContainer.scrollLeft / orgZoomLevel;
+        var scrollT = orgContainer.scrollTop / orgZoomLevel;
+
+        var vpLeft = offX + scrollL * scale;
+        var vpTop = offY + scrollT * scale;
+        var vpW = visW * scale;
+        var vpH = visH * scale;
+
+        orgMinimapViewport.style.left = vpLeft + 'px';
+        orgMinimapViewport.style.top = vpTop + 'px';
+        orgMinimapViewport.style.width = vpW + 'px';
+        orgMinimapViewport.style.height = vpH + 'px';
+    }
+
+    // Sync minimap on scroll
+    orgContainer.addEventListener('scroll', updateMinimap);
+
+    // Drag viewport on minimap to scroll
+    (function () {
+        var dragging = false;
+        var startX, startY, startScrollL, startScrollT;
+
+        var minimap = document.getElementById('org-minimap');
+
+        function getMinimapScale() {
+            var contentW = orgWrapper.scrollWidth;
+            var contentH = orgWrapper.scrollHeight;
+            var cw = orgMinimapCanvas.width, ch = orgMinimapCanvas.height;
+            var scaleX = cw / contentW;
+            var scaleY = ch / contentH;
+            return Math.min(scaleX, scaleY);
+        }
+
+        minimap.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            dragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startScrollL = orgContainer.scrollLeft;
+            startScrollT = orgContainer.scrollTop;
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var scale = getMinimapScale();
+            if (scale === 0) return;
+            var dx = (e.clientX - startX) / scale * orgZoomLevel;
+            var dy = (e.clientY - startY) / scale * orgZoomLevel;
+            orgContainer.scrollLeft = startScrollL + dx;
+            orgContainer.scrollTop = startScrollT + dy;
+        });
+
+        document.addEventListener('mouseup', function () {
+            dragging = false;
+        });
+
+        // Click on minimap to jump
+        minimap.addEventListener('click', function (e) {
+            if (e.target === orgMinimapViewport) return;
+            var rect = minimap.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+
+            var contentW = orgWrapper.scrollWidth;
+            var contentH = orgWrapper.scrollHeight;
+            var cw = orgMinimapCanvas.width, ch = orgMinimapCanvas.height;
+            var scale = getMinimapScale();
+            var offX = (cw - contentW * scale) / 2;
+            var offY = (ch - contentH * scale) / 2;
+
+            var contentX = (mx - offX) / scale;
+            var contentY = (my - offY) / scale;
+
+            orgContainer.scrollLeft = contentX * orgZoomLevel - orgContainer.clientWidth / 2;
+            orgContainer.scrollTop = contentY * orgZoomLevel - orgContainer.clientHeight / 2;
+        });
+    })();
+
+    // Refresh minimap after tree renders
+    var _origInitOrg = init_organization;
+    init_organization = function () {
+        _origInitOrg();
+        setTimeout(function() {
+            updateMinimap();
+            renderTimeline();
+        }, 200);
+    };
+
+    function init_chat_box() {
+        branches = [];
+        branchCounter = 0;
+        activeBranchId = null;
+        traceGraphReset();
+        chats = [];
+        from_trace_id = "";
+        var msg = {"role": master_agent_name, "content": first_chat};
+        chats.push(msg);
+        var rootBranch = createBranch(null, null);
+        rootBranch.frames.push({
+            "agent_id_dict": agent_id_dict,
+            "agent_organization": agent_organization,
+            "answer": JSON.parse(JSON.stringify(chats)),
+            "agent_log": {},
+            "tool_call": []
+        });
+        begin();
+        renderTimeline();
+        renderTraceGraph();
+    }
+
+    // 创建流式输出的消息元素
+    function create_streaming_message_element(agent_name, node_id) {
+        // 如果提供了node_id，使用node_id作为key
+        var key = node_id || agent_name;
+        
+        // 检查是否已经存在流式输出元素
+        if (streaming_elements_map[key]) {
+            return streaming_elements_map[key].element;
+        }
+        
+        var li = $("<li>");
+        var li_class = "master";
+        li.addClass(li_class);
+        
+        const idx = agent_id_dict[agent_name] % 16;
+        li.append(
+            $("<img>")
+                .attr("src", agentImgMap[idx]?.imgUrl)
+                .css("background-color", agentImgMap[idx]?.bgColor)
+        );
+        li.append($("<p>").text(agent_name));
+        
+        // 创建空的span用于流式输出内容，添加streaming-content类
+        var contentSpan = $('<span class="streaming-content">');
+        li.append(contentSpan);
+        
+        div_chatbox.append(li);
+        
+        // 存储到map中
+        streaming_elements_map[key] = {
+            agent: agent_name,
+            element: contentSpan,
+            node_id: node_id
+        };
+        
+        // 向后兼容：更新全局变量
+        current_streaming_element = contentSpan;
+        current_streaming_agent = agent_name;
+        
+        scroll_top_div_chat_history();
+        return contentSpan;
+    }
+    
+    // 处理流式消息
+    function handle_stream_message(jm) {
+        var agent_name = jm["content"]["agent"];
+        var node_id = jm["content"]["node_id"];
+        var delta = jm["content"]["delta"] || "";
+        
+        if (!delta) {
+            return;
+        }
+        
+        // 如果没有agent名称，使用默认值（向后兼容）
+        if (!agent_name) {
+            agent_name = current_streaming_agent || master_agent_name;
+        }
+        
+        // 获取或创建流式输出元素
+        var key = node_id || agent_name;
+        var streaming_info = streaming_elements_map[key];
+        
+        if (!streaming_info) {
+            // 创建新的流式输出元素
+            create_streaming_message_element(agent_name, node_id);
+            streaming_info = streaming_elements_map[key];
+        }
+        
+        // 追加流式内容
+        if (streaming_info && streaming_info.element) {
+            var currentText = streaming_info.element.text();
+            streaming_info.element.text(currentText + delta);
+            scroll_top_div_chat_history();
+        }
+    }
+
+    const rating_config = {
+        endpoint: "/rating",
+        erp: "oxygent"
+    };
+
+    function submit_rating(container, rating_type, comment) {
+        var trace_id = container.data("trace-id");
+        if (!trace_id) {
+            return;
+        }
+        
+        fetch(rating_config.endpoint, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                trace_id: trace_id,
+                rating_type: rating_type,
+                comment: comment || "",
+                erp: rating_config.erp
+            })
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Request failed");
+                }
+                return response.json();
+            })
+            .then(function () {
+                // Reset active states
+                container.find(".btn-icon").removeClass("active");
+                
+                // Set new active state (triggers CSS animation)
+                if (rating_type === "like") {
+                    container.find(".btn-icon.like").addClass("active");
+                } else if (rating_type === "dislike") {
+                    container.find(".btn-icon.dislike").addClass("active");
+                }
+            })
+            .catch(function (err) {
+                console.error("Rating submission error:", err);
+            });
+    }
+
+    function create_rating_container(trace_id) {
+        var container = $('<div class="message-rating-container">').data("trace-id", trace_id);
+        var actions = $('<div class="message-rating-actions">');
+
+        // Outline SVGs for Like/Dislike
+        var likeSvg = '<svg viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>';
+        var dislikeSvg = '<svg viewBox="0 0 24 24"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path></svg>';
+
+        var likeBtn = $('<button type="button" class="btn-icon like" title="Good response">' + likeSvg + '</button>');
+        var dislikeBtn = $('<button type="button" class="btn-icon dislike" title="Bad response">' + dislikeSvg + '</button>');
+
+        // Feedback Panel
+        var feedbackPanel = $('<div class="feedback-panel">');
+        var feedbackHeader = $('<div class="feedback-header"><span>What\'s the issue?</span><span class="feedback-close">&times;</span></div>');
+        
+        // Row 1: Options + Submit Button (Dynamic Slot 1)
+        var row1 = $('<div class="feedback-row-1">');
+        var feedbackOptions = $('<div class="feedback-options">');
+        row1.append(feedbackOptions);
+
+        // Row 2: Input + Submit Button (Dynamic Slot 2)
+        var row2 = $('<div class="feedback-row-2">');
+        var inputWrapper = $('<div class="feedback-input-wrapper">');
+        var customInput = $('<input type="text" class="feedback-input" placeholder="(Optional) Tell us more about your experience">');
+        inputWrapper.append(customInput);
+        row2.append(inputWrapper);
+
+        // Submit Button (Single instance moved around)
+        var submitBtn = $('<button class="feedback-submit-btn">Submit</button>');
+
+        var reasons = [
+            "Offensive/Unsafe",
+            "Factually incorrect",
+            "Not helpful",
+            "Privacy concern",
+            "Other"
+        ];
+
+        // Build Options
+        reasons.forEach(function(reason) {
+            var btn = $('<button class="feedback-option">' + reason + '</button>');
+            btn.on("click", function() {
+                $(this).toggleClass('selected');
+                updatePanelState();
+            });
+            feedbackOptions.append(btn);
+        });
+
+        function updatePanelState() {
+            var selectedTags = feedbackOptions.find('.feedback-option.selected');
+            var isOtherSelected = false;
+            var hasSelection = selectedTags.length > 0;
+
+            selectedTags.each(function() {
+                if ($(this).text() === "Other") {
+                    isOtherSelected = true;
+                }
+            });
+
+            if (!hasSelection) {
+                submitBtn.hide();
+                row2.hide(); 
+                if (submitBtn.parent().length) submitBtn.detach(); 
+            } else {
+                submitBtn.show(); 
+                submitBtn.css('display', 'block'); 
+
+                if (isOtherSelected) {
+                    // Mode 2: Show Row 2, Move button to Row 2
+                    row2.css('display', 'flex'); 
+                    row2.append(submitBtn);
+                    customInput.focus();
+                } else {
+                    // Mode 1: Hide Row 2, Move button to Row 1
+                    row2.hide();
+                    customInput.val(''); 
+                    row1.append(submitBtn);
+                }
+            }
+        }
+
+        // Close logic
+        feedbackHeader.find('.feedback-close').on('click', function() {
+            feedbackPanel.fadeOut(200);
+        });
+
+        // Submit Logic
+        submitBtn.on('click', function() {
+            var selectedReasons = [];
+            feedbackOptions.find('.feedback-option.selected').each(function() {
+                selectedReasons.push($(this).text());
+            });
+            
+            var comment = customInput.val().trim();
+            
+            var finalReason = selectedReasons.join(", ");
+            if (comment) {
+                if (finalReason) {
+                    finalReason += " | Details: " + comment;
+                } else {
+                    finalReason = comment;
+                }
+            }
+            
+            submit_rating(container, "dislike", finalReason || "Unspecified feedback");
+            feedbackPanel.fadeOut(200);
+        });
+
+        feedbackPanel.append(feedbackHeader, row1, row2);
+
+        // Button Actions
+        likeBtn.on("click", function () {
+            // Close feedback panel if open
+            feedbackPanel.hide();
+            // Submit Like
+            submit_rating(container, "like", "");
+        });
+
+        dislikeBtn.on("click", function () {
+            // Toggle Feedback Panel
+            if (feedbackPanel.is(':visible')) {
+                feedbackPanel.fadeOut(200);
+            } else {
+                feedbackPanel.fadeIn(200);
+                // Reset state
+                feedbackOptions.find('.feedback-option').removeClass('selected');
+                submitBtn.hide();
+                row2.hide();
+                customInput.val('');
+            }
+        });
+
+        actions.append(likeBtn, dislikeBtn);
+        container.append(actions, feedbackPanel);
+        return container;
+    }
+
+    function attach_rating_ui(li, trace_id) {
+        if (!trace_id || !li || li.length === 0) {
+            return;
+        }
+        if (li.find(".message-rating-container").length > 0) {
+            return;
+        }
+        li.append(create_rating_container(trace_id));
+    }
+
+    // ── Trace Graph (LLM/tool node tree across all branches) ──
+    // Each branch stores its own ordered list of LLM/tool nodes.
+    // The tree is built from the branch hierarchy (parentBranchId) and
+    // fork-point detection (matching shared node_id prefixes between
+    // parent and child, with forkFrameIndex as fallback).
+    // Renders incrementally — every traceGraphAddNode triggers a re-render.
+
+    var traceGraphData = {};  // branch_id → [{ node_id, copied_node_id, node_type, caller, callee, trace_id, frameIndex }]
+    var nodeCopiedIdMap = {};  // node_id → copied_node_id (populated from ALL observation messages, including cached nodes)
+    var replayHighlightIds = new Set();  // Set of node_ids to highlight as "replaying" during a ReRun
+
+    function traceGraphReset() {
+        traceGraphData = {};
+        nodeCopiedIdMap = {};
+        replayHighlightIds = new Set();
+        traceGraphTurnIndex = 0;
+    }
+
+    // Mark a node as "replaying" in the trace graph (highlight without full re-render).
+    function traceGraphHighlightReplay(copiedNodeId) {
+        if (!copiedNodeId) return;
+        replayHighlightIds.add(copiedNodeId);
+        // Use lightweight DOM update instead of full re-render
+        $('#tracegraph-body .tg-node[data-node-id]').each(function () {
+            if ($(this).attr('data-node-id') === copiedNodeId) {
+                $(this).addClass('replaying');
+            }
+        });
+    }
+
+    // Clear all replay highlights.
+    function traceGraphClearReplayHighlights() {
+        replayHighlightIds = new Set();
+        $('#tracegraph-body .tg-node.replaying').removeClass('replaying');
+    }
+
+    function traceGraphAddNode(node) {
+        var ab = getActiveBranch();
+        if (!ab || !node || !node.node_id) return;
+        if (!traceGraphData[ab.id]) traceGraphData[ab.id] = [];
+        traceGraphData[ab.id].push({
+            node_id: node.node_id,
+            copied_node_id: node.copied_node_id || '',
+            node_type: node.node_type,
+            caller: node.caller || '',
+            callee: node.callee || '',
+            trace_id: node.trace_id || '',
+            frameIndex: getActiveFrames().length,
+            turnIndex: traceGraphTurnIndex
+        });
+        renderTraceGraph();
+    }
+
+    var START_NODE = '<div class="tg-node tg-node-start" title="Start">'
+        + '<div class="tg-node-main">'
+        + '<svg class="tg-node-icon-svg" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#22c55e" stroke="#16a34a" stroke-width="1.5"/><polygon points="7.5,5.5 13,9 7.5,12.5" fill="#fff"/></svg>'
+        + '<span class="tg-node-callee">Start</span>'
+        + '</div></div>';
+
+    var END_NODE = '<div class="tg-node tg-node-end" title="End">'
+        + '<div class="tg-node-main">'
+        + '<svg class="tg-node-icon-svg" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#ef4444" stroke="#dc2626" stroke-width="1.5"/><rect x="6.5" y="6.5" width="5" height="5" rx="0.5" fill="#fff"/></svg>'
+        + '<span class="tg-node-callee">End</span>'
+        + '</div></div>';
+
+    var RUNNING_NODE = '<div class="tg-node tg-node-running" title="Running">'
+        + '<div class="tg-node-main">'
+        + '<svg class="tg-node-icon-svg tg-spin" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#e5e7eb" stroke-width="2"/><path d="M9 2.5 a6.5 6.5 0 0 1 6.5 6.5" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/></svg>'
+        + '<span class="tg-node-callee">Running</span>'
+        + '</div></div>';
+
+    var TURN_SEPARATOR = '<div class="tg-node tg-node-turn" title="New Turn">'
+        + '<div class="tg-node-main">'
+        + '<svg class="tg-node-icon-svg" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="#8b5cf6" stroke="#7c3aed" stroke-width="1.5"/><path d="M6 9h6M9 6v6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>'
+        + '<span class="tg-node-callee">New Turn</span>'
+        + '</div></div>';
+
+    // Check if a turn separator should be inserted between nodes[i-1] and nodes[i].
+    function needsTurnSeparator(nodes, i) {
+        return i > 0 && nodes[i].turnIndex !== nodes[i - 1].turnIndex;
+    }
+
+    // Return End for completed branches, Running for the active branch while
+    // the LLM is still working. Non-active branches are always finished.
+    function terminalNodeFor(branch) {
+        var ab = getActiveBranch();
+        var isActive = ab && branch && ab.id === branch.id;
+        return (llm_is_work && isActive) ? RUNNING_NODE : END_NODE;
+    }
+
+    function renderTraceGraph() {
+        var $body = $('#tracegraph-body');
+        var hasData = false;
+        for (var k in traceGraphData) {
+            if (traceGraphData[k] && traceGraphData[k].length) { hasData = true; break; }
+        }
+        if (!hasData) {
+            $body.html('<div class="tg-empty">No LLM/tool nodes yet.</div>');
+            return;
+        }
+        var roots = branches.filter(function(b) { return !b.parentBranchId; });
+        if (!roots.length) return;
+        // Promote child branches whose fork point is before parent's first node
+        // (forkNodeIdx === -1, i.e. rerun on the very first node) to virtual roots,
+        // so both the original and rerun flow as siblings directly off Start.
+        var virtualRoots = roots.slice();
+        branches.forEach(function(b) {
+            if (b.parentBranchId && b.forkNodeIdx === -1) {
+                if (virtualRoots.indexOf(b) === -1) virtualRoots.push(b);
+            }
+        });
+        // A branch is a "real" virtual root for End-rendering if it has no
+        // descendant branches that fork from a real node (forkNodeIdx >= 0).
+        var html = '<div class="tg-tree">';
+        // Single chain with no forks at all: Start → chain → End (inline)
+        var anyForks = branches.some(function(b) {
+            return b.parentBranchId && b.forkNodeIdx != null && b.forkNodeIdx >= 0;
+        });
+        if (virtualRoots.length === 1 && !anyForks) {
+            html += '<div class="tg-branch">' + START_NODE + ARROW;
+            var nodes = traceGraphData[virtualRoots[0].id] || [];
+            for (var i = 0; i < nodes.length; i++) {
+                if (i > 0) {
+                    if (needsTurnSeparator(nodes, i)) {
+                        html += ARROW + TURN_SEPARATOR;
+                    }
+                    html += ARROW;
+                }
+                html += renderNodeEl(nodes[i], virtualRoots[0]);
+            }
+            html += ARROW + terminalNodeFor(virtualRoots[0]) + '</div>';
+        } else {
+            // Multiple virtual roots OR forks within a chain: Start → fork → branches → End
+            html += '<div class="tg-branch">' + START_NODE;
+            html += '<span class="tg-fork-line"></span>';
+            html += '<div class="tg-children">';
+            virtualRoots.forEach(function(rb) { html += renderBranchSubtreeWithEnd(rb, 0); });
+            html += '</div></div>';
+        }
+        html += '</div>';
+        $body.html(html);
+    }
+
+    // Render nodes of `branch` from index `startIdx` onward, inserting
+    // child-branch forks at the correct positions.
+    function renderBranchSubtree(branch, startIdx, showArrowPrefix) {
+        var nodes = traceGraphData[branch.id] || [];
+        // Exclude children promoted to virtual roots (forkNodeIdx === -1)
+        var childBranches = branches.filter(function(b) {
+            return b.parentBranchId === branch.id && b.forkNodeIdx !== -1;
+        });
+
+        // Determine fork point for each child branch.
+        // Prefer the pre-computed forkNodeIdx stored on the branch object.
+        // Fall back to frameIndex matching if forkNodeIdx is not set.
+        var forkAt = {};  // nodeIdx → [ { branch, skipCount } , … ]
+        childBranches.forEach(function(cb) {
+            var forkIdx;
+            if (cb.forkNodeIdx != null && cb.forkNodeIdx >= 0) {
+                // Pre-computed at branch-creation time
+                forkIdx = cb.forkNodeIdx;
+            } else if (cb.forkNodeIdx === -1) {
+                // Fork is before the first parent node → attach at node 0
+                // (the child will appear alongside the parent's first node)
+                forkIdx = 0;
+            } else {
+                // Legacy / fallback: use forkFrameIndex to find the position
+                forkIdx = -1;
+                if (cb.forkFrameIndex != null) {
+                    for (var j = nodes.length - 1; j >= 0; j--) {
+                        if (nodes[j].frameIndex <= cb.forkFrameIndex) {
+                            forkIdx = j; break;
+                        }
+                    }
+                }
+                if (forkIdx === -1) forkIdx = Math.max(0, nodes.length - 1);
+            }
+            console.log('[TraceGraph] render fork:', cb.id,
+                'forkNodeIdx:', cb.forkNodeIdx,
+                'resolved forkIdx:', forkIdx,
+                'parentNodes:', nodes.length,
+                'childNodes:', (traceGraphData[cb.id] || []).length);
+            if (!forkAt[forkIdx]) forkAt[forkIdx] = [];
+            forkAt[forkIdx].push({ branch: cb, skipCount: 0 });
+        });
+
+        return buildNodeChain(branch, nodes, startIdx, forkAt, showArrowPrefix);
+    }
+
+    // Like renderBranchSubtree but appends End node at each leaf branch.
+    function renderBranchSubtreeWithEnd(branch, startIdx, showArrowPrefix) {
+        var nodes = traceGraphData[branch.id] || [];
+        var childBranches = branches.filter(function(b) {
+            return b.parentBranchId === branch.id && b.forkNodeIdx !== -1;
+        });
+
+        var forkAt = {};
+        childBranches.forEach(function(cb) {
+            var forkIdx;
+            if (cb.forkNodeIdx != null && cb.forkNodeIdx >= 0) {
+                forkIdx = cb.forkNodeIdx;
+            } else if (cb.forkNodeIdx === -1) {
+                forkIdx = 0;
+            } else {
+                forkIdx = -1;
+                if (cb.forkFrameIndex != null) {
+                    for (var j = nodes.length - 1; j >= 0; j--) {
+                        if (nodes[j].frameIndex <= cb.forkFrameIndex) {
+                            forkIdx = j; break;
+                        }
+                    }
+                }
+                if (forkIdx === -1) forkIdx = Math.max(0, nodes.length - 1);
+            }
+            if (!forkAt[forkIdx]) forkAt[forkIdx] = [];
+            forkAt[forkIdx].push({ branch: cb, skipCount: 0 });
+        });
+
+        return buildNodeChainWithEnd(branch, nodes, startIdx, forkAt, showArrowPrefix);
+    }
+
+    var ARROW = '<span class="tg-arrow"><svg width="24" height="14" viewBox="0 0 28 14"><path d="M2 7h20m0 0l-5-4m5 4l-5 4" fill="none" stroke="#B0B5C2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
+    function buildNodeChain(branch, nodes, idx, forkAt, showArrowPrefix) {
+        if (idx >= nodes.length) {
+            // No more parent nodes, but there might be child forks at this index
+            var trailingForks = forkAt[idx] || [];
+            if (trailingForks.length === 0) return '';
+            var html = '';
+            trailingForks.forEach(function(item) {
+                html += renderBranchSubtree(item.branch, item.skipCount, false);
+            });
+            return html;
+        }
+
+        // Render a flat horizontal chain of nodes that have no forks.
+        // When we hit a fork point (or the end), split into .tg-children.
+        var html = '<div class="tg-branch">';
+        var i = idx;
+        var first = true;
+        while (i < nodes.length) {
+            var forksHere = forkAt[i] || [];
+            // Arrow before node (between consecutive nodes, or at branch start)
+            if (first && showArrowPrefix) {
+                html += ARROW;
+            } else if (!first) {
+                if (needsTurnSeparator(nodes, i)) {
+                    html += ARROW + TURN_SEPARATOR;
+                }
+                html += ARROW;
+            }
+            first = false;
+            html += renderNodeEl(nodes[i], branch);
+
+            var hasMore = i + 1 < nodes.length;
+            if (forksHere.length > 0) {
+                // Fork point: CSS tree connectors handle the visual connection
+                // from this node to each child branch.
+                // If the continuation crosses a turn boundary, render the
+                // separator BEFORE the fork so it is shared by all branches.
+                if (hasMore && needsTurnSeparator(nodes, i + 1)) {
+                    html += ARROW + TURN_SEPARATOR;
+                }
+                var childrenHtml = '';
+                if (hasMore) {
+                    childrenHtml += buildNodeChain(branch, nodes, i + 1, forkAt, false);
+                }
+                forksHere.forEach(function(item) {
+                    childrenHtml += renderBranchSubtree(item.branch, item.skipCount, false);
+                });
+                if (childrenHtml) {
+                    html += '<span class="tg-fork-line"></span>';
+                    html += '<div class="tg-children">' + childrenHtml + '</div>';
+                }
+                break; // rest of chain is handled recursively inside .tg-children
+            }
+            if (!hasMore) break;
+            // No fork here and more nodes follow: continue flat chain
+            i++;
+        }
+        html += '</div>';
+        return html;
+    }
+
+    // Like buildNodeChain but appends an End node when the chain has no children/forks.
+    function buildNodeChainWithEnd(branch, nodes, idx, forkAt, showArrowPrefix) {
+        if (idx >= nodes.length) {
+            var trailingForks = forkAt[idx] || [];
+            if (trailingForks.length === 0) {
+                // Empty branch with no forks → just an End node alone
+                return '<div class="tg-branch">' + (showArrowPrefix ? ARROW : '') + terminalNodeFor(branch) + '</div>';
+            }
+            var html = '';
+            trailingForks.forEach(function(item) {
+                html += renderBranchSubtreeWithEnd(item.branch, item.skipCount, false);
+            });
+            return html;
+        }
+
+        var html = '<div class="tg-branch">';
+        var i = idx;
+        var first = true;
+        while (i < nodes.length) {
+            var forksHere = forkAt[i] || [];
+            if (first && showArrowPrefix) {
+                html += ARROW;
+            } else if (!first) {
+                if (needsTurnSeparator(nodes, i)) {
+                    html += ARROW + TURN_SEPARATOR;
+                }
+                html += ARROW;
+            }
+            first = false;
+            html += renderNodeEl(nodes[i], branch);
+
+            var hasMore = i + 1 < nodes.length;
+            if (forksHere.length > 0) {
+                // If the continuation crosses a turn boundary, render the
+                // separator BEFORE the fork so it is shared by all branches.
+                if (hasMore && needsTurnSeparator(nodes, i + 1)) {
+                    html += ARROW + TURN_SEPARATOR;
+                }
+                var childrenHtml = '';
+                if (hasMore) {
+                    childrenHtml += buildNodeChainWithEnd(branch, nodes, i + 1, forkAt, false);
+                } else {
+                    // This branch's chain ends here but it has child forks → terminate this
+                    // branch's own line with an End node alongside the child branches
+                    childrenHtml += '<div class="tg-branch">' + ARROW + terminalNodeFor(branch) + '</div>';
+                }
+                forksHere.forEach(function(item) {
+                    childrenHtml += renderBranchSubtreeWithEnd(item.branch, item.skipCount, false);
+                });
+                if (childrenHtml) {
+                    html += '<span class="tg-fork-line"></span>';
+                    html += '<div class="tg-children">' + childrenHtml + '</div>';
+                }
+                break;
+            }
+            if (!hasMore) {
+                // Leaf: append End node
+                html += ARROW + terminalNodeFor(branch);
+                break;
+            }
+            i++;
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function renderNodeEl(n, branch) {
+        var ab = getActiveBranch();
+        var isActive = ab && ab.id === branch.id;
+        var isDisabled = llm_is_work && !isActive;
+        var isReplaying = replayHighlightIds.has(n.node_id);
+        var iconSrc = (n.node_type === 'llm' || n.node_type === 'model')
+            ? './image/org_model.svg' : './image/org_tool.svg';
+        var rerunBtn = (!llm_is_work && (n.node_type === 'llm' || n.node_type === 'model' || n.node_type === 'tool'))
+            ? '<button type="button" class="tg-node-rerun" title="ReRun from this node"'
+                + ' data-node-id="' + escapeHtml(n.node_id) + '">'
+                + '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">'
+                + '<polygon points="2,1 9,5 2,9" fill="currentColor"/></svg></button>'
+            : '';
+        var cls = 'tg-node' + (isActive ? ' active' : '') + (isDisabled ? ' disabled' : '') + (isReplaying ? ' replaying' : '');
+        return '<div class="' + cls + '"'
+            + ' data-trace-id="' + escapeHtml(n.trace_id) + '"'
+            + ' data-node-id="' + escapeHtml(n.node_id) + '"'
+            + ' data-branch-id="' + escapeHtml(branch.id) + '"'
+            + ' title="' + escapeHtml(n.callee) + ' (' + escapeHtml(n.node_id) + ')">'
+            + (n.caller ? '<div class="tg-node-caller">' + escapeHtml(n.caller) + '</div>' : '')
+            + '<div class="tg-node-main">'
+            + '<img class="tg-node-icon" src="' + iconSrc + '" alt="" />'
+            + '<span class="tg-node-callee">' + escapeHtml(n.callee) + '</span>'
+            + rerunBtn
+            + '</div></div>';
+    }
+
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // Click a Trace Graph node → switch to the branch that owns it.
+    $('#tracegraph-body').on('click', '.tg-node', function (e) {
+        // Ignore clicks on the ReRun button (handled separately)
+        if ($(e.target).closest('.tg-node-rerun').length) return;
+        var bid = $(this).attr('data-branch-id');
+        var nodeId = $(this).attr('data-node-id');
+        if (!bid) return;
+        // Switch to the node's branch if not already active
+        if (bid !== activeBranchId) {
+            var b = branches.find(function(x) { return x.id === bid; });
+            if (!b) return;
+            activeBranchId = b.id;
+            from_trace_id = b.traceId || "";
+            no_change_history = false;
+            renderTraceGraph();
+            renderTimeline();
+        }
+        // Jump to the frame corresponding to this node
+        var targetFrame = -1;
+        if (nodeId) {
+            var nodes = traceGraphData[bid] || [];
+            for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i].node_id === nodeId) {
+                    targetFrame = nodes[i].frameIndex;
+                    break;
+                }
+            }
+        }
+        var f = getActiveFrames();
+        if (targetFrame >= 0 && targetFrame < f.length) {
+            jumpToFrame(targetFrame);
+        } else {
+            jumpToFrame(Math.max(0, f.length - 1));
+        }
+    });
+
+    // Click the ReRun button inside a Trace Graph node → restart from that node.
+    $('#tracegraph-body').on('click', '.tg-node-rerun', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var nodeId = $(this).attr('data-node-id');
+        if (!nodeId || llm_is_work) return;
+        restart_from_node(nodeId, undefined);
+    });
+
+    // Click a chat message → jump to the frame where it first appeared.
+    div_chatbox.on('click', 'li', function (e) {
+        // Don't intercept clicks on interactive children (rating buttons, links)
+        if ($(e.target).closest('button, a, input, .rating-container').length) return;
+        var msgIndex = $(this).index(); // 0-based position among siblings
+        var f = getActiveFrames();
+        // Find the earliest frame whose answer array is long enough to include this message
+        for (var i = 0; i < f.length; i++) {
+            if (f[i].answer && f[i].answer.length > msgIndex) {
+                jumpToFrame(i);
+                return;
+            }
+        }
+    });
+
+    // Set traceId on active branch and re-render the graph.
+    function traceGraphSetTrace(trace_id) {
+        if (!trace_id) return;
+        var ab = getActiveBranch();
+        if (ab) {
+            ab.traceId = trace_id;
+            renderTraceGraph();
+        }
+    }
+
+    // Backwards-compat shim kept for old call sites.
+    function attach_trace_chain(li, trace_id) {
+        traceGraphSetTrace(trace_id);
+    }
+
+    function send_msg_to_chatbox(msg, name = "user", at = "", scroll_top = true, trace_id = "") {
+        if (name === "__rerun_divider__") {
+            var li = $("<li>").addClass("rerun-divider");
+            li.append($('<span class="rerun-divider-label">').text(msg));
+            div_chatbox.append(li);
+            if (scroll_top) scroll_top_div_chat_history();
+            return;
+        }
+        var li = $("<li>");
+        if (name === "user") {
+            li.addClass("me");
+            li.append(`
+                    <span class="user-img">
+                        <img src="./image/user.svg" />
+                    </span>
+                `);
+        } else {
+            li_class = at === "" ? "master" : "other";
+            li.addClass(li_class);
+            // li.append($("<img>").attr("src", "./image/agent_" + agent_id_dict[name] + ".png"));
+
+            const idx = agent_id_dict[name] % 16;
+
+            li.append(
+                $("<img>")
+                    .attr("src", agentImgMap[idx]?.imgUrl)
+                    .css("background-color", agentImgMap[idx]?.bgColor)
+            );
+
+            li.append($("<p>").text(name));
+        }
+        if (at === "") {
+            if (argentName && name === "user") {
+                var argentNameHtml = `<i style="color: #155EEF;font-style: normal">@${argentName}</i>`
+                li.append($('<span class="1">').html(argentNameHtml + " " + msg));
+                argentName = '';
+                renderCharlist();
+            } else if (name === "user") {
+                li.append($('<span class="1">').text(msg));
+            } else {
+                li.append($('<span class="1 markdown-body">').html(marked.marked(msg)));
+            }
+        } else {
+            if (name === "user") {
+                li.append($('<span>').append($("<section>").css("color", agentImgMap[agent_id_dict[at]]?.color).text("@" + at)).append(msg));
+            } else {
+                li.append($('<span class="markdown-body">').append($("<section>").css("color", agentImgMap[agent_id_dict[at]]?.color).text("@" + at)).append(marked.marked(msg)));
+            }
+        }
+
+        if (name === master_agent_name && at === "") {
+            attach_rating_ui(li, trace_id);
+            attach_trace_chain(li, trace_id);
+        }
+
+        if (name === "user" && filesToUpload.length > 0) {
+            var fileList = document.createElement('div');
+            fileList.className = 'file-list-chat';
+            filesToUpload.forEach(_file => {
+                var fileItem = document.createElement('div');
+                if (_file.objectUrl) {
+                    fileItem.className = 'file-item-image-chat';
+                    fileItem.innerHTML = `<img class="file-thumb" src="${_file.objectUrl}" alt="${_file.name}" />`;
+                } else {
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                            <div class="file-icon">
+                                <img src="./image/video.svg" alt="" />
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name">${_file.name}</div>
+                                <div class="file-size">${_file.size}</div>
+                            </div>`;
+                }
+                fileList.append(fileItem);
+            })
+            li.append(fileList);
+            // 清空输入框
+            fileReset()
+        }
+        div_chatbox.append(li);
+        if (scroll_top) {
+            scroll_top_div_chat_history();
+        }
+    }
+
+    function scroll_top_div_chat_history() {
+        div_chat_history.stop();
+        if (div_chat_history[0]) {
+            div_chat_history.animate({
+                scrollTop: div_chat_history[0].scrollHeight
+            }, 500);
+        }
+    }
+
+    function send_message() {
+        if (llm_is_work == false) {
+            if (now_script_id !== "") {
+                // from_trace_id = "";   // ws.send("reset");
+                // init_chat_box();
+                // init_organization();
+                // $(".nice-select").find("input").val("");
+                // now_script_id = "";
+            }
+            end();
+            var input = document.getElementById('message_input');
+            var message = input.value;
+
+            if (!message) {
+                return
+            }
+            // Re-render the trace graph (traceId will be set when SSE events arrive).
+            traceGraphTurnIndex++;
+            renderTraceGraph();
+            let query_val = message;
+            try {
+                const parsed = JSON.parse(message.trim());
+                // 若为对象 / 数组且包含 "part" 字段，则认为是 A2A 格式
+                if (
+                    (Array.isArray(parsed) && parsed[0]?.part) ||
+                    (parsed && parsed.part)
+                ) {
+                    query_val = parsed;   // 结构化 query
+                }
+            } catch (e) {
+                /* 不是合法 JSON ⇒ 维持纯文本 */
+            }
+
+            var payload = {
+                "from_trace_id": from_trace_id,
+                "query": message,
+            }
+            if (Object.keys(chatSharedData).length > 0) {
+                payload["shared_data"] = chatSharedData;
+            }
+            if (Object.keys(chatGroupData).length > 0) {
+                payload["group_data"] = chatGroupData;
+            }
+
+            if (filesToUpload.length) {
+                payload.attachments = filesToUpload.map(({serverName}) => serverName);
+            }
+
+            if (argentName) {
+                payload.callee = argentName;
+            }
+
+            // ToDo 接口协议修改
+            // if (message.includes("图")) {
+            //     payload["attachments"] = ["20250705122650_20250626090420425_副本.png"]
+            // }
+            eventSource = new EventSource('../sse/chat?payload=' + encodeURIComponent(JSON.stringify(payload)));
+            // eventSource = new EventSource('../sse/chat?query='+message+'&from_trace_id='+from_trace_id);
+            // let messageQueue = [];
+            // let processing = false;
+            // const eventSource = new EventSource('http://127.0.0.1:8080/sse/chat');
+            // let queue = [];
+            eventSource.onmessage = (event) => {
+                // console.log(event.data);
+                message_handler(event.data);
+                // queue.push(event.data);
+            };
+            // setInterval(() => {
+            //     if (queue.length > 0) {
+            //         message_handler(queue.shift());
+            //     }
+            // }, 1000);
+            eventSource.onerror = (e) => {
+                console.log('SSE 连接发生错误', e);
+                $("#message_send").html(`
+                    <img src="./image/up_arrow.svg" alt="" />
+                `);
+                eventSource.close();
+            };
+            eventSource.addEventListener("close", (event) => {
+                console.log("任务完成，关闭SSE连接:", event.data);
+                $("#message_send").html(`
+                    <img src="./image/up_arrow.svg" alt="" />
+                `);
+                eventSource.close(); // 主动关闭连接
+            });
+            // ws.send(JSON.stringify(payload));  // 发送消息
+            input.value = '';
+            input.style.height = 'auto';
+            var msg = {"role": "user", "content": message};
+            chats.push(msg);
+            var frames = getActiveFrames();
+            let history = JSON.parse(JSON.stringify(frames[frames.length - 1] || {}));
+            history["answer"] = JSON.parse(JSON.stringify(chats));
+            frames.push(history);
+            show_id = frames.length - 1;
+            show_step();
+            appendTimelineFrame(history, frames.length - 1);
+            send_msg_to_chatbox(message);
+            llm_is_work = true;
+            $("#message_send").html(`
+                    <img src="./image/stop-circle.svg" alt="" />
+                `);
+        } else {
+            eventSource.close();
+            llm_is_work = false;
+            traceGraphClearReplayHighlights();
+            renderTraceGraph();
+            plan_dict = {};
+            $("#message_send").html(`
+                <img src="./image/up_arrow.svg" alt="" />
+            `);
+        }
+    }
+
+    // 从中间节点重跑推理（利用 restart_node_id 后端能力）
+    // Creates a new branch forking from the current branch at the current show_id.
+    function restart_from_node(nodeId, editedOutput) {
+        if (llm_is_work) return;
+
+        // Clear any leftover replay highlights from a prior ReRun
+        traceGraphClearReplayHighlights();
+
+        plan_dict = {};
+        nodeContentMap = {};
+
+        // ── 1. Resolve nodeId and find the owner branch ──
+        var resolvedId = nodeId;
+        var _seen = {};
+        while (nodeCopiedIdMap[resolvedId] && !_seen[resolvedId]) {
+            _seen[resolvedId] = true;
+            resolvedId = nodeCopiedIdMap[resolvedId];
+        }
+        var searchIds = [nodeId];
+        if (resolvedId !== nodeId) searchIds.push(resolvedId);
+        for (var _bid in traceGraphData) {
+            var _arr = traceGraphData[_bid];
+            for (var _j = 0; _j < _arr.length; _j++) {
+                if (_arr[_j].copied_node_id) {
+                    if (searchIds.indexOf(_arr[_j].node_id) === -1
+                        && searchIds.indexOf(_arr[_j].copied_node_id) !== -1) {
+                        searchIds.push(_arr[_j].node_id);
+                    }
+                    if (searchIds.indexOf(_arr[_j].copied_node_id) === -1
+                        && searchIds.indexOf(_arr[_j].node_id) !== -1) {
+                        searchIds.push(_arr[_j].copied_node_id);
+                    }
+                }
+            }
+        }
+
+        function findNodeInBranch(branch) {
+            var nodes = traceGraphData[branch.id] || [];
+            for (var k = 0; k < nodes.length; k++) {
+                var nd = nodes[k];
+                for (var s = 0; s < searchIds.length; s++) {
+                    if (nd.node_id === searchIds[s] || nd.copied_node_id === searchIds[s]) {
+                        return k;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        // Search all branches for the node owner
+        var ownerBranch = null;
+        var restartIdx = -1;
+        for (var _b = 0; _b < branches.length; _b++) {
+            var idx = findNodeInBranch(branches[_b]);
+            if (idx !== -1) {
+                ownerBranch = branches[_b];
+                restartIdx = idx;
+                break;
+            }
+        }
+
+        // ── 2. Determine the true parent branch ──
+        // The parent of the new branch is the branch that owns the rerun node,
+        // not necessarily the currently active branch.
+        var parentBranch = ownerBranch || getActiveBranch();
+        var forkIndex = Math.max(0, parentBranch ? parentBranch.frames.length - 1 : 0);
+        var forkFrame = parentBranch ? parentBranch.frames[forkIndex] : null;
+
+        // ── 3. Create the new branch ──
+        var newBranch = createBranch(parentBranch ? parentBranch.id : null, forkIndex);
+
+        // ── 4. Compute forkNodeIdx for the Trace Graph ──
+        var fni;
+        if (restartIdx > 0) {
+            fni = restartIdx - 1;
+        } else if (restartIdx === 0) {
+            if (ownerBranch && ownerBranch.parentBranchId != null && ownerBranch.forkNodeIdx != null) {
+                newBranch.parentBranchId = ownerBranch.parentBranchId;
+                fni = ownerBranch.forkNodeIdx;
+            } else {
+                fni = -1;
+            }
+        } else {
+            var fallbackNodes = parentBranch ? (traceGraphData[parentBranch.id] || []) : [];
+            fni = Math.max(0, fallbackNodes.length - 1);
+        }
+        newBranch.forkNodeIdx = fni;
+        console.log('[TraceGraph] fork:', newBranch.id,
+            'parent:', newBranch.parentBranchId,
+            'restartNodeId:', nodeId,
+            'searchIds:', searchIds,
+            'ownerBranch:', ownerBranch ? ownerBranch.id : null,
+            'restartIdx:', restartIdx,
+            'forkNodeIdx:', fni);
+
+        // Re-render trace graph to show the new branch
+        renderTraceGraph();
+
+        var payload = {
+            "restart_node_id": nodeId,
+        };
+        if (editedOutput !== undefined && editedOutput !== null) {
+            payload["restart_node_output"] = editedOutput;
+        }
+
+        // 使用与 send_message 相同的 EventSource GET 模式
+        eventSource = new EventSource('../sse/chat?payload=' + encodeURIComponent(JSON.stringify(payload)));
+        eventSource.onmessage = (event) => {
+            message_handler(event.data);
+        };
+        eventSource.onerror = (e) => {
+            console.log('SSE restart connection error', e);
+            $("#message_send").html('<img src="./image/up_arrow.svg" alt="" />');
+            eventSource.close();
+            llm_is_work = false;
+            traceGraphClearReplayHighlights();
+            renderTraceGraph();
+        };
+        eventSource.addEventListener("close", (event) => {
+            console.log("Restart complete, closing SSE:", event.data);
+            $("#message_send").html('<img src="./image/up_arrow.svg" alt="" />');
+            eventSource.close();
+            llm_is_work = false;
+            traceGraphClearReplayHighlights();
+            renderTraceGraph();
+        });
+
+        // ── 5. Build initial chat for the new branch ──
+        // Use the rerun node's frameIndex from the OWNER branch's frames
+        // to find the chat state just before the node was executed.
+        var rerunNodeFrameIdx = -1;
+        if (ownerBranch && restartIdx >= 0) {
+            var ownerNodes = traceGraphData[ownerBranch.id] || [];
+            if (ownerNodes[restartIdx]) {
+                rerunNodeFrameIdx = ownerNodes[restartIdx].frameIndex;
+            }
+        }
+        var cutFrame = null;
+        if (rerunNodeFrameIdx > 0 && parentBranch) {
+            cutFrame = parentBranch.frames[Math.min(rerunNodeFrameIdx - 1, parentBranch.frames.length - 1)];
+        }
+        var cutAnswer = (cutFrame && cutFrame.answer) ? cutFrame.answer : ((forkFrame && forkFrame.answer) ? forkFrame.answer : []);
+        var lastUserIdx = -1;
+        for (var i = cutAnswer.length - 1; i >= 0; i--) {
+            if (cutAnswer[i].role === "user") {
+                lastUserIdx = i;
+                break;
+            }
+        }
+        if (lastUserIdx >= 0) {
+            chats = JSON.parse(JSON.stringify(cutAnswer.slice(0, lastUserIdx + 1)));
+        } else {
+            chats = [{"role": master_agent_name, "content": first_chat}];
+        }
+        var frames = getActiveFrames();
+        var seedFrame = forkFrame
+            ? JSON.parse(JSON.stringify(forkFrame))
+            : {};
+        seedFrame["answer"] = JSON.parse(JSON.stringify(chats));
+        seedFrame["agent_log"] = {};
+        seedFrame["tool_call"] = [];
+        frames.push(seedFrame);
+        show_id = frames.length - 1;
+        show_step();
+        renderTimeline();
+        no_change_history = false;
+        show_by_history(seedFrame);
+        llm_is_work = true;
+        $("#message_send").html('<img src="./image/stop-circle.svg" alt="" />');
+    }
+
+    function show(jm) {
+        // 渲染
+        if (jm["type"] == "answer" || jm["type"] == "agent_call") {
+            var from_size = div_chatbox.children().length;
+            var to_size = jm["content"].length;
+            if (no_change_history && from_size === to_size) {
+                return;
+            } else if (no_change_history && from_size > to_size) {
+                // remove
+                div_chatbox.children().slice(to_size - from_size).remove();
+                return;
+            } else if (no_change_history && from_size < to_size) {
+                // add
+                jm["content"].slice(from_size - to_size).forEach(chat => {
+                    send_msg_to_chatbox(chat.content, chat.role, chat.at, false, chat.trace_id);
+                });
+                scroll_top_div_chat_history();
+                return;
+            }
+            no_change_history = true;
+            div_chatbox.empty();
+            jm["content"].forEach(chat => {
+                send_msg_to_chatbox(chat.content, chat.role, chat.at, false, chat.trace_id);
+            });
+            scroll_top_div_chat_history();
+        }
+        if (jm["type"] == "agent_log") {
+            if (Object.keys(jm.content)?.length) {
+                div_right.stop(true, false);
+                div_right.empty();
+            }
+            agent_log = jm["content"];
+            // console.log("agent_log", agent_log);
+            if (agent_log.hasOwnProperty("agent_name") && agent_log["agent_name"].trim() !== "") {
+                var div_agent_name = $("<div>").addClass("agent_name");
+
+                const idx = agent_id_dict[agent_log["agent_name"]] % 16;
+                const cur = agentImgMap[idx];
+                // console.log('cur', cur)
+
+                // div_agent_name.append('<img src="./image/agent_' + agent_id_dict[agent_log["agent_name"]] + '.png" class="agent_log_img">');
+                div_agent_name.append(
+                    $("<img>")
+                        .attr("src", cur?.imgUrl)
+                        .addClass('agent_log_img')
+                        .css("background-color", cur?.bgColor)
+                );
+                div_agent_name.append(agent_log["agent_name"]);
+                div_right.append(div_agent_name);
+            }
+            if (agent_log.hasOwnProperty("job_desc") && agent_log["job_desc"].trim() !== "") {
+                // div_right.append($("<h3>").text("Job Description").css("color", "red"));
+                div_right.append($("<div class='job_desc'>").text(agent_log["job_desc"]));
+                div_right.append($("<div class='job_desc_interval'>"));
+            }
+            if (agent_log.hasOwnProperty("intention") && Object.keys(agent_log["intention"]).length !== 0) {
+                div_right.append($("<h3>").text("Intention Understanding").css("color", "red"));
+                var a_tag = $("<a>").attr("href", "./node.html?id=" + agent_log["intention"].node_id).attr("target", "_blank").css("text-decoration", "none").css("color", "black");
+                var temp_div = $("<div>").addClass("planning").text(agent_log["intention"]["content"]);
+                a_tag.append(temp_div);
+                div_right.append(a_tag);
+            }
+            if (agent_log.hasOwnProperty("plannings") && agent_log["plannings"].length > 0) {
+                for (var i = 0; i < agent_log["plannings"].length; i++) {
+                    var markdownInput = agent_log["plannings"][i].content;
+                    if (typeof markdownInput !== 'string') {
+                        markdownInput = JSON.stringify(markdownInput, null, 2);
+                    }
+
+                        if (agent_log["plannings"][i].type == 'observation') {
+                            div_right
+                                .append($("<div class='observation-head'>")
+                                .text(agent_log["plannings"][i].callee));
+                        } else {
+                            div_right
+                                .append($("<div class='plannings-head'>")
+                                .text(agent_log["plannings"][i].callee));
+                        }
+
+                        // Output header with toggle group and detail link
+                        var outputHead = $("<div class='plannings-output-head'>");
+                        outputHead.append($("<span>").text('Output'));
+                        var toggleGroup = $("<span class='output-toggle-group'>");
+                        toggleGroup.append($("<button class='output-toggle-btn active' onclick='toggleOutputView(this, \"markdown\"); event.stopPropagation();'>").text('Markdown'));
+                        toggleGroup.append($("<button class='output-toggle-btn' onclick='toggleOutputView(this, \"raw\"); event.stopPropagation();'>").text('Raw'));
+                        toggleGroup.append($("<a class='output-detail-btn' title='View detail' onclick='event.stopPropagation();'>").attr("href", "./node.html?id=" + agent_log["plannings"][i].node_id).attr("target", "_blank").html('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'));
+                        outputHead.append(toggleGroup);
+                        div_right.append(outputHead);
+
+                        // Timeline container: wraps output + action buttons with a single continuous vertical line
+                        var timelineContainer = $("<div class='node-timeline-container'>");
+
+                        // Wrapper containing both markdown and raw views
+                        var outputWrapper = $("<div class='plannings-output-wrapper'>");
+
+                        var mdLink = $("<div class='plannings-link planning-markdown'>");
+                        var temp_div = $("<div>").addClass("planning");
+                        temp_div.html(marked.marked(markdownInput));
+                        mdLink.append(temp_div);
+                        outputWrapper.append(mdLink);
+
+                        // Raw view (hidden by default), same nested structure as markdown
+                        var rawLink = $("<div class='plannings-link planning-raw'>").hide();
+                        var rawInner = $("<div class='planning'>").css({"white-space": "pre-wrap", "word-wrap": "break-word", "font-family": "'Menlo','Monaco','Courier New',monospace", "font-size": "12px"}).text(markdownInput);
+                        rawLink.append(rawInner);
+                        outputWrapper.append(rawLink);
+
+                        timelineContainer.append(outputWrapper);
+
+                        // 节点操作按钮
+                        var curNodeId = agent_log["plannings"][i].node_id;
+                        var curCalleeCategory = agent_log["plannings"][i].callee_category || "";
+                        nodeContentMap[curNodeId] = markdownInput;
+                        var node_actions = $("<div class='node-actions'>")
+                            .attr("data-node-id", curNodeId);
+                        node_actions.append(
+                            $("<button type='button' class='btn-locate' title='Locate in Trace Graph'>")
+                                .html('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Locate')
+                        );
+                        if (curCalleeCategory === "llm" || curCalleeCategory === "tool") {
+                            node_actions.append(
+                                $("<button type='button' class='btn-restart' title='Restart from this node'>")
+                                    .html("<span class='node-action-icon'>&#9654;</span> ReRun")
+                            );
+                            node_actions.append(
+                                $("<button type='button' class='btn-edit-restart' title='Edit output and restart'>")
+                                    .html("<span class='node-action-icon'>&#9998;</span> Edit & ReRun")
+                            );
+                        }
+                        timelineContainer.append(node_actions);
+
+                        div_right.append(timelineContainer);
+                }
+            }
+
+            if (div_right[0]) {
+                scrollRightPanelToBottom();
+            }
+        }
+        if (jm["type"] == "tool_call") {
+            new_node_state = jm["content"];
+            var diff_color = diffNodeColors(node_state, new_node_state);
+            Object.entries(diff_color).forEach(([key, value]) => {
+                if (value === 'red') { // 当前选中
+                    $("#" + key).removeClass('pre-select');
+                    $("#" + key).addClass('select');
+
+                    focus_agent(key);
+                } else if (value === 'yellow') { // 上一个选中
+                    $("#" + key).removeClass('select');
+                    $("#" + key).addClass('pre-select');
+
+                } else if (value === 'white') { // 恢复初始态
+                    $("#" + key).removeClass('select');
+                    $("#" + key).removeClass('pre-select');
+                } else {
+
+                }
+            });
+            node_state = JSON.parse(JSON.stringify(new_node_state));
+            if (typeof updateMinimap === 'function') updateMinimap();
+        }
+    }
+
+    // 右侧面板收起展开逻辑
+    $("#agent_log").on('click', function (e) {
+        let current = $(e.target);
+
+        let aimDom = null;
+        while (aimDom === null && current.attr('id') !== 'agent_log') {
+            if (current.hasClass('plannings-output-head') || current.hasClass('observation-output-head')) {
+                aimDom = current;
+            } else {
+                current = current.parent();
+            }
+        }
+
+        if (aimDom === null) return;
+
+        if (aimDom.hasClass("collapse")) {
+            aimDom.removeClass("collapse");
+            aimDom.next().css({
+                display: "block",
+            })
+        } else {
+            aimDom.addClass('collapse');
+            aimDom.next().css({
+                display: "none",
+            })
+        }
+    });
+
+    // Locate button → jump to the frame corresponding to this node
+    $("#agent_log").on("click", ".btn-locate", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var nodeId = $(this).closest(".node-actions").attr("data-node-id");
+        if (!nodeId) return;
+        // Search traceGraphData for this node (covers LLM/tool nodes)
+        var targetFrameIdx = -1;
+        var targetBranchId = null;
+        for (var bid in traceGraphData) {
+            var nodes = traceGraphData[bid];
+            for (var i = 0; i < nodes.length; i++) {
+                if (nodes[i].node_id === nodeId || nodes[i].copied_node_id === nodeId) {
+                    targetFrameIdx = nodes[i].frameIndex;
+                    targetBranchId = bid;
+                    break;
+                }
+            }
+            if (targetBranchId) break;
+        }
+        // Fallback: search frames' agent_log for agent nodes not in traceGraphData
+        if (targetFrameIdx < 0) {
+            for (var bi = 0; bi < branches.length; bi++) {
+                var br = branches[bi];
+                for (var fi = 0; fi < br.frames.length; fi++) {
+                    var al = br.frames[fi].agent_log;
+                    if (al && al.plannings) {
+                        for (var pi = 0; pi < al.plannings.length; pi++) {
+                            if (al.plannings[pi].node_id === nodeId) {
+                                targetFrameIdx = Math.max(0, fi - 1);
+                                targetBranchId = br.id;
+                                break;
+                            }
+                        }
+                    }
+                    if (targetBranchId) break;
+                }
+                if (targetBranchId) break;
+            }
+        }
+        if (targetBranchId && targetBranchId !== activeBranchId) {
+            var b = branches.find(function(x) { return x.id === targetBranchId; });
+            if (b) {
+                activeBranchId = b.id;
+                from_trace_id = b.traceId || "";
+                no_change_history = false;
+                renderTraceGraph();
+                renderTimeline();
+            }
+        }
+        var f = getActiveFrames();
+        if (targetFrameIdx >= 0 && targetFrameIdx < f.length) {
+            jumpToFrame(targetFrameIdx);
+        }
+    });
+
+    // "从此重跑" 按钮事件
+    $("#agent_log").on("click", ".btn-restart", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var nodeId = $(this).closest(".node-actions").attr("data-node-id");
+        restart_from_node(nodeId, undefined);
+    });
+
+    // "编辑并重跑" 按钮事件 — 打开模态框
+    $("#agent_log").on("click", ".btn-edit-restart", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var actions = $(this).closest(".node-actions");
+        var nodeId = actions.attr("data-node-id");
+        var content = nodeContentMap[nodeId] || "";
+        $("#restart-output-editor").val(content);
+        $("#restart-modal").data("node-id", nodeId).show();
+    });
+
+    // 模态框确认
+    $(document).on("click", "#restart-modal-confirm", function () {
+        var nodeId = $("#restart-modal").data("node-id");
+        var edited = $("#restart-output-editor").val();
+        $("#restart-modal").hide();
+        restart_from_node(nodeId, edited);
+    });
+
+    // 模态框关闭 / 取消
+    $(document).on("click", "#restart-modal-cancel, .restart-modal-close", function () {
+        $("#restart-modal").hide();
+    });
+
+    // 点击模态框遮罩层关闭
+    $(document).on("click", ".restart-modal-overlay", function (e) {
+        if ($(e.target).hasClass("restart-modal-overlay")) {
+            $(this).hide();
+        }
+    });
+
+    function show_by_history(history) {
+        show({"type": "answer", "content": history["answer"]});
+        show({"type": "agent_log", "content": history["agent_log"]});
+        show({"type": "tool_call", "content": history["tool_call"]});
+    }
+
+    function begin() {
+        show_id = 0;
+        div_right.empty();
+        div_right.append(`
+            <div class="agent-empty">
+                <img class="empty-img" src="./image/empty.svg" alt="">
+            </div>
+        `);
+        show_step();
+        var f = getActiveFrames();
+        if (f.length > 0) {
+            syncChatsFromFrame(f[show_id]);
+            show_by_history(f[show_id]);
+        }
+    }
+
+    function back() {
+        if (show_id > 0) {
+            show_id -= 1;
+            show_step();
+            var frame = getActiveFrames()[show_id];
+            syncChatsFromFrame(frame);
+            show_by_history(frame);
+        }
+    }
+
+    function play() {
+        let status = $("#play")[0].dataset.status;
+
+        if (status == "play") {
+            var f = getActiveFrames();
+            if (show_id < f.length - 1) {
+                $("#play").html(`
+                        <img src="./image/pause.svg" alt="" />
+                    `);
+                $("#play")[0].setAttribute('data-status', 'pause');
+
+                interval_id = setInterval(function () {
+                    var f = getActiveFrames();
+                    if (show_id < f.length - 1) {
+                        show_id += 1;
+                        show_step();
+                        show_by_history(f[show_id]);
+                        syncChatsFromFrame(f[show_id]);
+                    } else {
+                        clearInterval(interval_id);
+                        $("#play").html(`
+                                <img src="./image/play.svg" alt="" />
+                            `);
+                        $("#play")[0].setAttribute('data-status', 'play');
+                    }
+                }, 500);
+            }
+        } else {
+            clearInterval(interval_id);
+            $("#play").html(`
+                    <img src="./image/play.svg" alt="" />
+                `);
+            $("#play")[0].setAttribute('data-status', 'play');
+        }
+    }
+
+    function next() {
+        var f = getActiveFrames();
+        if (show_id < f.length - 1) {
+            show_id += 1;
+            show_step();
+            syncChatsFromFrame(f[show_id]);
+            show_by_history(f[show_id]);
+        }
+    }
+
+    function end() {
+        var f = getActiveFrames();
+        show_id = Math.max(0, f.length - 1);
+        show_step();
+        if (f.length > 0) {
+            syncChatsFromFrame(f[show_id]);
+            show_by_history(f[show_id]);
+        }
+    }
+
+    window.onbeforeunload = function () {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
+    };
+
+    function focus_agent(eid) {
+        var target_div = $("#" + eid);
+        var window_div = $(".center-scroll");
+
+        // 1. 计算target_div相对于window_div的坐标
+        var td_offset = target_div.offset() || {};
+        var wd_offset = window_div.offset() || {};
+
+        var td = {
+            x: td_offset.left - wd_offset.left + window_div.scrollLeft(),
+            y: td_offset.top - wd_offset.top + window_div.scrollTop(),
+            w: target_div.outerWidth(),
+            h: target_div.outerHeight()
+        };
+        var wd = {
+            l: window_div.scrollLeft(),
+            t: window_div.scrollTop(),
+            w: window_div.width(),
+            h: window_div.height()
+        };
+
+        // 2. 判断是否在可视区域
+        if (
+            td.y >= wd.t &&
+            td.y + td.h <= wd.t + wd.h &&
+            td.x >= wd.l &&
+            td.x + td.w <= wd.l + wd.w
+        ) {
+            return;
+        }
+
+        // 3. 计算要滚动到的中心
+        var scrollTop = Math.max(0, td.y + td.h / 2 - wd.h / 2);
+        var scrollLeft = Math.max(0, td.x + td.w / 2 - wd.w / 2);
+
+        window_div.animate({scrollTop: scrollTop, scrollLeft: scrollLeft}, 200);
+    }
+
+    function click_to_next() {
+        ws.send("next");
+        console.log('next');
+    }
+
+    function debug() {
+        var window_div = div_org;
+        var wd = {
+            'l': window_div.scrollLeft(),
+            't': window_div.scrollTop(),
+            'w': window_div.width(),
+            'h': window_div.height()
+        }
+        console.log(wd);
+    }
+
+    function save_historys() {
+        $.ajax({
+            type: "POST",
+            url: "../save_script",
+            data: JSON.stringify({
+                contents: serializeSession(),
+                name: now_script_id.replace('.json', '')
+            }),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (response) {
+                MessageSDK.show('success!')
+                list_historys();
+            }
+        })
+    }
+
+    function list_historys() {
+        $.ajax({
+            type: "GET",
+            url: "../list_script",
+            success: function (response) {
+                response = response.data.scripts;
+                handleFileCascader(response)
+                // $("#list").empty();
+                // response.forEach(element => {
+                //     $("#list").append($("<li>").text(element));
+                // });
+            }
+        })
+    }
+
+    function load_historys(script_id) {
+        $.ajax({
+            type: "GET",
+            url: "../load_script/",
+            data: {
+                item_id: script_id
+            },
+            success: function (response) {
+                deserializeSession(response.data.contents);
+                now_script_id = script_id;
+                renderHeaderTitle(now_script_id);
+                $("#message_input").val("");
+                $("#message_input").attr("placeholder", "Click here to create a new reproduce script and start a new conversation.");
+                $("#chat_send").on('click', function () {
+                    window.location.reload();
+                });
+                $("#message_send").prop("disabled", true);
+                $("#message_addtional").prop("disabled", true);
+            }
+        })
+    }
+
+    function searchList(strValue) {
+        var count = 0;
+        if (strValue != "") {
+            $(".nice-select ul li").each(function (i) {
+                var contentValue = $(this).text();
+                if (contentValue.toLowerCase().indexOf(strValue.toLowerCase()) < 0) {
+                    $(this).hide();
+                    count++;
+                } else {
+                    $(this).show();
+                }
+                if (count == (i + 1)) {
+                    $(".nice-select").find("ul").hide();
+                } else {
+                    $(".nice-select").find("ul").show();
+                }
+            });
+        } else {
+            $(".nice-select ul li").each(function (i) {
+                $(this).show();
+            });
+        }
+    }
+
+    function show_step() {
+        $("#step").text((show_id + 1) + " / " + getActiveFrames().length);
+        updateTimelineActive();
+        highlightTraceGraphNode();
+    }
+
+    function highlightTraceGraphNode() {
+        $('#tracegraph-body .tg-node').removeClass('tg-node-current');
+        var ab = getActiveBranch();
+        if (!ab) return;
+        var nodes = traceGraphData[ab.id] || [];
+        // Find the latest node whose frameIndex <= show_id
+        var bestNode = null;
+        for (var i = nodes.length - 1; i >= 0; i--) {
+            if (nodes[i].frameIndex <= show_id) {
+                bestNode = nodes[i];
+                break;
+            }
+        }
+        if (bestNode) {
+            var el = $('#tracegraph-body .tg-node[data-node-id="' + bestNode.node_id + '"]');
+            el.addClass('tg-node-current');
+            // Auto-scroll trace graph to the highlighted node
+            if (el.length) {
+                var container = document.getElementById('tracegraph-body');
+                var node = el[0];
+                if (container && node) {
+                    var nodeTop = node.offsetTop;
+                    var nodeH = node.offsetHeight;
+                    var cH = container.clientHeight;
+                    var cST = container.scrollTop;
+                    if (nodeTop < cST || nodeTop + nodeH > cST + cH) {
+                        container.scrollTop = nodeTop - cH / 2 + nodeH / 2;
+                    }
+                }
+            }
+        }
+    }
+
+    // ========== Timeline Functions ==========
+
+    function extractFrameInfo(history, index) {
+        var info = { index: index, actionType: '', label: '', detail: '', agentName: '' };
+        var agentLog = history.agent_log || {};
+        var answer = history.answer || [];
+        info.agentName = agentLog.agent_name || '';
+
+        if (index === 0) {
+            info.actionType = 'init';
+            info.label = 'Start';
+            info.detail = 'Initial state';
+        } else if (answer.length > 0 && answer[answer.length - 1].role === 'user') {
+            info.actionType = 'user';
+            info.label = 'User';
+            var msg = answer[answer.length - 1].content || '';
+            info.detail = msg.length > 30 ? msg.substring(0, 28) + '...' : msg;
+        } else if (agentLog.plannings && agentLog.plannings.length > 0) {
+            var last = agentLog.plannings[agentLog.plannings.length - 1];
+            if (last.type === 'observation') {
+                info.actionType = 'observation';
+                info.label = last.callee || info.agentName || 'Tool';
+            } else {
+                info.actionType = 'llm';
+                info.label = info.agentName || 'LLM';
+            }
+            info.detail = agentLog.job_desc || '';
+            if (info.detail.length > 30) info.detail = info.detail.substring(0, 28) + '...';
+        } else {
+            info.actionType = 'agent';
+            info.label = info.agentName || ('Frame ' + (index + 1));
+            info.detail = agentLog.job_desc || '';
+            if (info.detail.length > 30) info.detail = info.detail.substring(0, 28) + '...';
+        }
+        return info;
+    }
+
+    function captureTreeThumbnail(toolCallState) {
+        var wrapper = document.getElementById('org-zoom-wrapper');
+        if (!wrapper) return '';
+        var nodes = wrapper.querySelectorAll('.item-template');
+        if (nodes.length === 0) return '';
+
+        // Apply highlights for this frame
+        nodes.forEach(function(node) {
+            node.classList.remove('select', 'pre-select');
+        });
+        if (toolCallState && typeof toolCallState === 'object') {
+            Object.entries(toolCallState).forEach(function(entry) {
+                var el = document.getElementById(entry[0]);
+                if (el) {
+                    if (entry[1] === 'red') el.classList.add('select');
+                    else if (entry[1] === 'yellow') el.classList.add('pre-select');
+                }
+            });
+        }
+
+        // Draw nodes on a small canvas
+        var canvas = document.createElement('canvas');
+        var cw = 120, ch = 80;
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+
+        var wr = wrapper.getBoundingClientRect();
+        var contentW = wrapper.scrollWidth;
+        var contentH = wrapper.scrollHeight;
+        if (contentW === 0 || contentH === 0) return '';
+
+        var scaleX = cw / contentW;
+        var scaleY = ch / contentH;
+        var scale = Math.min(scaleX, scaleY) * 0.9;
+        var offX = (cw - contentW * scale) / 2;
+        var offY = (ch - contentH * scale) / 2;
+
+        nodes.forEach(function(node) {
+            var r = node.getBoundingClientRect();
+            var nx = (r.left - wr.left) / orgZoomLevel;
+            var ny = (r.top - wr.top) / orgZoomLevel;
+            var nw = r.width / orgZoomLevel;
+            var nh = r.height / orgZoomLevel;
+
+            var x = offX + nx * scale;
+            var y = offY + ny * scale;
+            var w = nw * scale;
+            var h = nh * scale;
+
+            if (node.classList.contains('select')) {
+                ctx.fillStyle = '#155EEF';
+                ctx.strokeStyle = '#0E47C0';
+                ctx.lineWidth = 0.5;
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
+            } else if (node.classList.contains('pre-select')) {
+                ctx.fillStyle = '#C5D3E8';
+                ctx.strokeStyle = '#155EEF';
+                ctx.lineWidth = 1.5;
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
+            } else {
+                ctx.fillStyle = '#C5D3E8';
+                ctx.strokeStyle = '#93A8C9';
+                ctx.lineWidth = 0.5;
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
+            }
+        });
+
+        return canvas.toDataURL('image/png');
+    }
+
+    function createTimelineFrameEl(info, index) {
+        var frame = document.createElement('div');
+        frame.className = 'timeline-frame';
+        frame.setAttribute('data-frame-index', index);
+        if (index === show_id) frame.classList.add('active');
+        else if (index < show_id) frame.classList.add('visited');
+
+        if (info.thumbnail) {
+            var thumb = document.createElement('img');
+            thumb.className = 'timeline-thumb-img';
+            thumb.src = info.thumbnail;
+            thumb.draggable = false;
+            frame.appendChild(thumb);
+        }
+
+        var badge = document.createElement('div');
+        badge.className = 'timeline-thumb-badge';
+        badge.textContent = '#' + (index + 1);
+        frame.appendChild(badge);
+
+        frame.addEventListener('click', function() { jumpToFrame(index); });
+        return frame;
+    }
+
+    function renderTimeline() {
+        var track = document.getElementById('timeline-track');
+        if (!track) return;
+        track.innerHTML = '';
+
+        var wrapper = document.getElementById('org-zoom-wrapper');
+        var nodes = wrapper ? wrapper.querySelectorAll('.item-template') : [];
+        var canCapture = nodes.length > 0;
+
+        if (canCapture) {
+            // Save current highlight state
+            var savedState = {};
+            nodes.forEach(function(node) {
+                if (node.id) {
+                    if (node.classList.contains('select')) savedState[node.id] = 'select';
+                    else if (node.classList.contains('pre-select')) savedState[node.id] = 'pre-select';
+                }
+            });
+
+            var af = getActiveFrames();
+            for (var i = 0; i < af.length; i++) {
+                var info = extractFrameInfo(af[i], i);
+                info.thumbnail = captureTreeThumbnail(af[i].tool_call);
+                track.appendChild(createTimelineFrameEl(info, i));
+            }
+
+            // Restore original highlight state
+            nodes.forEach(function(node) {
+                node.classList.remove('select', 'pre-select');
+                if (node.id && savedState[node.id]) {
+                    node.classList.add(savedState[node.id]);
+                }
+            });
+            if (typeof updateMinimap === 'function') updateMinimap();
+        } else {
+            var af = getActiveFrames();
+            for (var i = 0; i < af.length; i++) {
+                var info = extractFrameInfo(af[i], i);
+                track.appendChild(createTimelineFrameEl(info, i));
+            }
+        }
+
+        renderBranchSelector();
+        scrollTimelineToActive();
+    }
+
+    function updateTimelineActive() {
+        var track = document.getElementById('timeline-track');
+        if (!track) return;
+        var frames = track.querySelectorAll('.timeline-frame');
+        for (var i = 0; i < frames.length; i++) {
+            frames[i].classList.remove('active', 'visited');
+            if (i === show_id) frames[i].classList.add('active');
+            else if (i < show_id) frames[i].classList.add('visited');
+        }
+        scrollTimelineToActive();
+    }
+
+    function appendTimelineFrame(history, index) {
+        var track = document.getElementById('timeline-track');
+        if (!track) return;
+        var info = extractFrameInfo(history, index);
+
+        // Capture current minimap canvas as thumbnail (tree is already in correct state)
+        if (typeof updateMinimap === 'function') updateMinimap();
+        var srcCanvas = document.getElementById('org-minimap-canvas');
+        if (srcCanvas && srcCanvas.width > 0) {
+            try { info.thumbnail = srcCanvas.toDataURL('image/png'); } catch(e) {}
+        }
+
+        track.appendChild(createTimelineFrameEl(info, index));
+        updateTimelineActive();
+    }
+
+    function jumpToFrame(index) {
+        var f = getActiveFrames();
+        if (index < 0 || index >= f.length) return;
+        show_id = index;
+        show_step();
+        syncChatsFromFrame(f[show_id]);
+        show_by_history(f[show_id]);
+    }
+
+    function scrollTimelineToActive() {
+        var wrapper = document.getElementById('timeline-track-wrapper');
+        if (!wrapper) return;
+        var active = wrapper.querySelector('.timeline-frame.active');
+        if (!active) return;
+        var fl = active.offsetLeft;
+        var fw = active.offsetWidth;
+        var ww = wrapper.clientWidth;
+        var sl = wrapper.scrollLeft;
+        if (fl < sl || fl + fw > sl + ww) {
+            wrapper.scrollLeft = fl - (ww / 2) + (fw / 2);
+        }
+    }
+
+    function toggleTimeline() {
+        var section = document.getElementById('timeline-section');
+        if (!section) return;
+        section.classList.toggle('collapsed');
+        var isCollapsed = section.classList.contains('collapsed');
+        document.body.classList.toggle('timeline-hidden', isCollapsed);
+    }
+
+    function toggleTraceGraph() {
+        var section = document.getElementById('tracegraph-section');
+        if (!section) return;
+        section.classList.toggle('collapsed');
+        var isCollapsed = section.classList.contains('collapsed');
+        document.body.classList.toggle('tracegraph-hidden', isCollapsed);
+        // Clear inline height set by drag resize so CSS collapse rules take effect
+        if (isCollapsed) {
+            var body = document.getElementById('tracegraph-body');
+            if (body) body.style.height = '';
+        }
+    }
+
+    // ── Trace Graph resize handle ──
+    (function () {
+        var handle = document.getElementById('tracegraph-resize-handle');
+        var body = document.getElementById('tracegraph-body');
+        if (!handle || !body) return;
+        var dragging = false;
+        var startY, startH;
+
+        handle.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            dragging = true;
+            startY = e.clientY;
+            startH = body.offsetHeight;
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var maxH = window.innerHeight * 0.5;
+            var newH = Math.max(40, Math.min(maxH, startH + (e.clientY - startY)));
+            body.style.height = newH + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (!dragging) return;
+            dragging = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+    })();
+
+    // ── JSON Editor for shared_data / group_data ──
+    function toggleJsonEditor() {
+        var panel = $('#json_editor_panel');
+        if (panel.is(':visible')) {
+            panel.hide();
+        } else {
+            $('#json_shared_data').val(JSON.stringify(chatSharedData, null, 2));
+            $('#json_group_data').val(JSON.stringify(chatGroupData, null, 2));
+            $('#json_shared_data_error').text('');
+            $('#json_group_data_error').text('');
+            panel.show();
+        }
+    }
+
+    function applyJsonEditor() {
+        var sharedText = $('#json_shared_data').val().trim();
+        var groupText = $('#json_group_data').val().trim();
+        var hasError = false;
+
+        // Parse shared_data
+        try {
+            chatSharedData = sharedText ? JSON.parse(sharedText) : {};
+            $('#json_shared_data_error').text('');
+        } catch (e) {
+            $('#json_shared_data_error').text('Invalid JSON: ' + e.message);
+            hasError = true;
+        }
+
+        // Parse group_data
+        try {
+            chatGroupData = groupText ? JSON.parse(groupText) : {};
+            $('#json_group_data_error').text('');
+        } catch (e) {
+            $('#json_group_data_error').text('Invalid JSON: ' + e.message);
+            hasError = true;
+        }
+
+        if (!hasError) {
+            $('#json_editor_panel').hide();
+        }
+    }
+
+    function clearJsonEditor() {
+        chatSharedData = {};
+        chatGroupData = {};
+        $('#json_shared_data').val('{}');
+        $('#json_group_data').val('{}');
+        $('#json_shared_data_error').text('');
+        $('#json_group_data_error').text('');
+    }
+
+    function cancelJsonEditor() {
+        $('#json_editor_panel').hide();
+    }
+
+    var querysList = [];
+
+    function toggleQuerysPanel() {
+        var panel = $('#querys_panel');
+        if (panel.is(':visible')) {
+            panel.hide();
+        } else {
+            var list = $('#querys_list');
+            list.empty();
+            querysList.forEach(function (q) {
+                var li = $('<li></li>').text(q);
+                li.on('click', function () {
+                    $('#message_input').val(q);
+                    var el = document.getElementById('message_input');
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                    $('#message_send').addClass('message_send_active');
+                    panel.hide();
+                });
+                list.append(li);
+            });
+            panel.show();
+        }
+    }
+
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#querys_panel, #querys_toggle').length) {
+            $('#querys_panel').hide();
+        }
+    });
+
+    // 关闭最右侧对话框
+    function closeRight() {
+        $('#rightId').css('display', 'none');
+        $('#rightResizeHandle').css('display', 'none');
+        $('#message_group').html('<img src="./image/group-vector-active.svg" alt=""/>')
+    }
+
+    function openRight() {
+        if ($('#rightId').css('display') == 'none') {
+            $('#message_group').html('<img src="./image/group-vector-default.svg" alt=""/>')
+            $('#rightId').css('display', 'block');
+            $('#rightResizeHandle').css('display', 'block');
+        }
+    }
+
+    // ── Right panel per-output view toggle (markdown / raw) ──
+    function toggleOutputView(btn, mode) {
+        var group = $(btn).closest('.output-toggle-group');
+        group.find('.output-toggle-btn').removeClass('active');
+        $(btn).addClass('active');
+
+        var wrapper = $(btn).closest('.plannings-output-head').next('.plannings-output-wrapper');
+        var mdDiv = wrapper.find('.planning-markdown');
+        var rawDiv = wrapper.find('.planning-raw');
+        if (mode === 'raw') {
+            mdDiv.hide();
+            rawDiv.show();
+        } else {
+            rawDiv.hide();
+            mdDiv.show();
+        }
+    }
+
+    // ── Right panel resize handle ──
+    (function () {
+        var handle = document.getElementById('rightResizeHandle');
+        var rightPanel = document.getElementById('rightId');
+        var dragging = false;
+        var startX, startWidth;
+
+        handle.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            dragging = true;
+            startX = e.clientX;
+            startWidth = rightPanel.offsetWidth;
+            handle.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            // Use mouse position relative to container's right edge to compute max width.
+            // This guarantees the right panel can never extend past the viewport.
+            var containerRect = rightPanel.parentElement.getBoundingClientRect();
+            var rightMargin = 20;
+            var maxFromEdge = containerRect.right - e.clientX - handle.offsetWidth - rightMargin;
+            var newWidth = startWidth - (e.clientX - startX);
+            newWidth = Math.max(200, Math.min(newWidth, maxFromEdge));
+            rightPanel.style.flex = '0 0 ' + newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (!dragging) return;
+            dragging = false;
+            handle.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+    })();
+
+
+    var _cascaderOptions = [
+        {
+            id: 'New',
+            value: 'New',
+            label: 'New',
+            image: './image/group_add.svg',
+        },
+        {
+            id: 'Import',
+            value: 'Import',
+            label: 'Import',
+            image: './image/group_open.svg',
+        },
+        {
+            id: 'Load',
+            value: 'Load',
+            label: 'Load',
+            image: './image/group_recent.svg',
+        },
+        {
+            id: 'Save',
+            value: 'Save',
+            label: 'Save',
+            image: './image/group_save.svg',
+        },
+        {
+            id: 'Export',
+            value: 'Export',
+            label: 'Export',
+            image: './image/group_export.svg',
+        }
+    ];
+
+    var _cascader = new Cascader({
+            el: '#cascaderInput',
+            dropdown: '#cascaderDropdown',
+            options: _cascaderOptions,
+            onChange: function (selectedValues, selectedOptions) {
+                // console.log('Selected:', selectedValues, selectedOptions);
+                if (!selectedValues.length) {
+                    return false;
+                }
+
+                if (selectedValues[0] === 'New') {
+                    // 清空选项
+                    branches = [];
+                    branchCounter = 0;
+                    activeBranchId = null;
+                    now_script_id = '';
+                    window.location.reload();
+                }
+
+                if (selectedValues[0] === 'Import') {
+                    document.getElementById('fileInput').click();
+                }
+
+                if (selectedValues[0] === 'Export') {
+                    var _exportData = serializeSession();
+                    if (!_exportData.branches || !_exportData.branches.length) {
+                        return
+                    }
+                    var jsonData = JSON.stringify(_exportData, null, 2);
+                    var blob = new Blob([jsonData], {type: 'application/json'});
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = now_script_id || 'session.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+
+                if (selectedValues[0] === 'Save') {
+                    //保存内里
+                    save_historys()
+                    _cascader = null;
+                }
+
+                if (selectedValues[0] === 'Load') {
+                    //  加载具体的记录
+                    const recentId = selectedValues[1];
+                    // console.log(recentId);
+                    if (recentId) {
+                        load_historys(recentId);
+                    }
+                }
+            }
+        });
+        // 文件输入事件
+        document.getElementById('fileInput').addEventListener('change', function (e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    var _options = JSON.parse(e.target.result);
+                    if (Array.isArray(_options) || (_options && _options.version === 2)) {
+                        deserializeSession(_options);
+                        now_script_id = file.name;
+                        renderHeaderTitle(now_script_id);
+                        $("#message_input").val("");
+                        $("#message_input").attr("placeholder", "Click here to create a new reproduce script and start a new conversation.");
+                        $("#chat_send").on('click', function () {
+                            window.location.reload();
+                        });
+                        $("#message_send").prop("disabled", true);
+                        $("#message_addtional").prop("disabled", true);
+                    } else {
+                        alert('导入的JSON数据格式不正确');
+                    }
+                } catch (error) {
+                    alert('解析JSON文件失败: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        });
+    
+
+    function handleFileCascader(response) {
+        const recentData = response.map(function (item) {
+            return {
+                label: item,
+                value: item,
+                type: 'recent'
+            }
+        })
+
+        // 级联示例数据
+        var options = _cascaderOptions.map(function (item) {
+            if (item.id === 'Load') {
+                item.children = recentData;
+            }
+            return item;
+        })
+
+        
+        // 初始化级联选择器
+        if (_cascader) {
+            _cascader.updateOptions(options)
+            _cascader.renderMenus()
+        }
+
+    }
+
+
+    // 等待DOM加载完成
+    // 文件上传相关变量
+    var uploadArea = document.getElementById('message_addtional');
+    var fileInput = document.getElementById('fileAddtional');
+    var fileList = document.getElementById('fileList');
+    var uploadBtn = document.getElementById('uploadBtn');
+    var clearBtn = document.getElementById('clearBtn');
+    var uploadStatus = document.getElementById('uploadStatus');
+
+    // // 拖放上传事件
+    // uploadArea.addEventListener('dragover', function (e) {
+    //     e.preventDefault();
+    //     uploadArea.classList.add('highlight');
+    // });
+    //
+    // uploadArea.addEventListener('dragleave', function () {
+    //     uploadArea.classList.remove('highlight');
+    // });
+    //
+    // uploadArea.addEventListener('drop', function (e) {
+    //     e.preventDefault();
+    //     uploadArea.classList.remove('highlight');
+    //     handleFiles(e.dataTransfer.files);
+    // });
+
+    // 点击上传区域
+    uploadArea.addEventListener('click', function () {
+        fileInput.click();
+    });
+
+    // 文件选择变化
+    fileInput.addEventListener('change', function () {
+        if (fileInput.files.length > 0) {
+            handleFiles(fileInput.files);
+        }
+    });
+
+    // // 清空列表按钮
+    // clearBtn.addEventListener('click', function () {
+    //     filesToUpload = [];
+    //     renderFileList();
+    // });
+
+    // 处理选择的文件
+    function handleFiles(files) {
+        for (var i = 0; i < files.length; i++) {
+            (function (file) {
+                // 检查文件类型
+                var fileType = getFileType(file.name);
+                if (!fileType) {
+                    showStatus('不支持的文件类型: ' + file.name, false);
+                    return;
+                }
+
+                // 先上传，成功以后再放入缓存中
+                var isImage = ['jpg', 'png'].indexOf(fileType) !== -1;
+
+                uploadFile(file, (res) => {
+                    // 添加到上传列表
+                    filesToUpload.push({
+                        serverName: res.data.file_name,
+                        file: file,
+                        name: file.name,
+                        size: formatFileSize(file.size),
+                        type: fileType,
+                        objectUrl: isImage ? URL.createObjectURL(file) : null,
+                        progress: 0,
+                        status: 'pending' // pending, uploading, success, error
+                    });
+                    renderFileList();
+                })
+            })(files[i]);
+        }
+
+
+        // uploadBtn.disabled = filesToUpload.length === 0;
+    }
+
+    // 获取文件类型
+    // 获取文件类型（决定是否允许以及后续展示用）
+    function getFileType(filename) {
+        var ext = filename.split('.').pop().toLowerCase();
+        switch (ext) {
+            case 'txt':     return 'text';
+            case 'jpg':
+            case 'jpeg':    return 'jpg';
+            case 'png':     return 'png';
+            case 'mp4':     return 'mp4';
+            case 'xlsx':
+            case 'xls':     return 'excel';
+            case 'doc':
+            case 'docx':    return 'word';
+            case 'pdf':     return 'pdf';
+            case 'csv':     return 'csv';
+            case 'tsv':     return 'tsv';
+            case 'ods':     return 'ods';
+            case 'py':      return 'python';
+            case 'md':      return 'markdown';
+            case 'json':    return 'json';
+            default:        return 'file';   // 其它未知格式统一按通用文件处理
+        }
+    }
+
+
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        var k = 1024;
+        var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function fileDelete(v) {
+        // console.log('fileDelete', v);
+        var removed = filesToUpload.filter(item => item.name === v);
+        removed.forEach(function (item) {
+            if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+        });
+        filesToUpload = filesToUpload.filter(item => item.name !== v);
+        renderFileList()
+    }
+
+    renderFileList()
+
+    function fileReset() {
+        filesToUpload.forEach(function (item) {
+            if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+        });
+        filesToUpload = [];
+        renderFileList();
+    }
+
+    // 渲染文件列表
+    function renderFileList() {
+        fileList.innerHTML = '';
+
+        if (filesToUpload.length === 0) {
+
+            if ($("#message_send").hasClass("message_send_active")) {
+                $("#message_send").removeClass('message_send_active'); // 有值时背景色为蓝色
+            }
+            fileList.innerHTML = '';
+            return;
+        }
+        $("#message_send").addClass('message_send_active'); // 有值时背景色为蓝色
+        filesToUpload.forEach(function (file, index) {
+            var fileItem = document.createElement('div');
+
+            if (file.objectUrl) {
+                // Image file — render as thumbnail card
+                fileItem.className = 'file-item-image';
+                fileItem.innerHTML = `
+                    <img class="file-thumb" src="${file.objectUrl}" alt="${file.name}" />
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-close" data-id="${file.name}">
+                        <img src="./image/group_close.svg" alt="#">
+                    </div>`;
+            } else {
+                // Non-image file — render as icon + name bar
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-icon">
+                        <img src="./image/video.svg" alt="" />
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${file.size}</div>
+                    </div>
+                    <div class="file-close" data-id="${file.name}">
+                        <img src="./image/group_close.svg" alt="#">
+                    </div>`;
+            }
+
+            fileList.appendChild(fileItem);
+        });
+        $('.file-close').on('click', function (event) {
+            const name = $(event.currentTarget).attr('data-id');
+            fileDelete(name);
+        })
+    }
+
+    // 显示上传状态
+    function showStatus(message, isSuccess) {
+        uploadStatus.style.display = 'block';
+        uploadStatus.textContent = message;
+        uploadStatus.className = 'upload-status ' + (isSuccess ? 'status-success' : 'status-error');
+
+        setTimeout(function () {
+            uploadStatus.style.display = 'none';
+        }, 3000);
+    }
+
+    // agentList
+    function parseChartAt(params) {
+        // console.log('parseChartAt', params);
+        argentName = params;
+        renderCharlist();
+        // 隐藏chat
+        $('#chat-at-list-container-id').hide();
+    }
+
+    var chatAgentList = document.getElementById('chatAgentList');
+    renderCharlist();
+    function renderCharlist() {
+        if (argentName) {
+            chatAgentList.style.display = 'flex';
+            chatAgentList.innerHTML= `
+                <div class="chat-agent-item">
+                    <div class="chat-agent-info">
+                        <div class="chat-agent-name"><span>@</span>${argentName}</div>
+                    </div>
+                    <div class="chat-agent-close" onclick="chatAgentClose('${argentName}')">
+                        <img src="./image/group_close.svg" alt="#">
+                    </div>
+                </div>
+            `;
+        }else{
+            chatAgentList.style.display = 'none';
+            chatAgentList.innerHTML = '';
+        }
+    }
+    function chatAgentClose(params) {
+        argentName ='';
+        renderCharlist();
+    }
+
+    /**
+     * 渲染@列表
+     */
+    function renderChatAtAgentList() {
+        const agentList = Object.keys(agent_id_dict);
+        var _agentListHtml = '';
+        agentList.forEach(item => {
+            const idx = agent_id_dict[item] % 16;
+            const _url = agentImgMap[idx]
+            _agentListHtml += `
+                <li class="chat-at-item">
+                    <div class="chat-at-avatar" style="background-color: ${_url?.bgColor}">
+                        <img src="${_url?.imgUrl}" alt="#"></img>
+                    </div>
+                    <div class="chat-at-name">${item}</div>
+                </li>
+            `
+        })
+        document.getElementById('chatAtListId').innerHTML = _agentListHtml;
+        $('.chat-at-list li').on('click', function (event) {
+            const name = $(event.currentTarget).text().trim();
+            parseChartAt(name);
+        });
+    }
+
+    // 键盘事件
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            // 先判断存在，在隐藏
+            $('#chat-at-list-container-id').hide();
+        }
+    });
+
+
+    // ========== Feature Guide Tour ==========
+    var _guideTourRunning = false;
+    var _guideTourStepIndex = 0;
+    var _guideTourAutoTimer = null;
+
+    var _guideTourSteps = [
+        {
+            selector: '.cascader',
+            icon: '\u{1F4C2}',
+            title: 'File Manager',
+            desc: 'Import/export conversation sessions as JSON. Save your work, load previous sessions, or share agent interactions with your team.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.header-left .btn-nav-toggle:nth-of-type(1)',
+            icon: '\u{1F4DA}',
+            title: 'History',
+            desc: 'Open the History page to browse, search, filter, and rate past conversations. Quickly locate and replay previous agent sessions.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.header-left .btn-nav-toggle:nth-of-type(2)',
+            icon: '\u{270F}️',
+            title: 'Prompts',
+            desc: 'Open the Prompt Manager to edit, version, diff, and hot-reload system prompts at runtime — no service restart needed.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.header-right .control',
+            icon: '\u{23EF}️',
+            title: 'Playback Controls',
+            desc: 'Step-by-step replay: rewind to start, step back, play/pause auto-play, step forward, jump to end. Debug agent execution frame by frame.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '#btn-timeline-toggle',
+            icon: '\u{1F4CF}',
+            title: 'Steps Timeline',
+            desc: 'Toggle the step timeline bar. Shows each execution step on a horizontal track with branch support for navigating parallel traces.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '#btn-tracegraph-toggle',
+            icon: '\u{1F332}',
+            title: 'Trace Graph',
+            desc: 'Toggle the trace graph panel. Visualizes conversation branching as a tree — fork, compare, and navigate between different execution paths.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.container > .center',
+            icon: '\u{1F5FA}️',
+            title: 'Organization Tree',
+            desc: 'Interactive agent hierarchy visualization. See how agents are organized, their types, tools, and LLM configurations. Supports zoom, pan, and minimap.',
+            tooltipPos: 'right'
+        },
+        {
+            selector: '.container > .left',
+            icon: '\u{1F4AC}',
+            title: 'Chat Playground',
+            desc: 'Main conversation panel. Send messages, upload files, use @mention to target specific agents. Supports Markdown rendering and SSE streaming.',
+            tooltipPos: 'left'
+        },
+        {
+            selector: '#chat_send',
+            icon: '\u{2328}️',
+            title: 'Input & Attachments',
+            desc: 'Rich input area: type messages, upload files (images, docs, code), add shared/group data via JSON editor, and @mention agents for direct routing.',
+            tooltipPos: 'above'
+        },
+        {
+            selector: '.container > .right',
+            icon: '\u{1F4CB}',
+            title: 'Agent Detail Panel',
+            desc: 'Click any agent node to inspect execution details: input/output, tool calls, LLM interactions, token usage, and timing information.',
+            tooltipPos: 'left'
+        }
+    ];
+
+    function startGuideTour() {
+        if (_guideTourRunning) return;
+        _guideTourRunning = true;
+        _guideTourStepIndex = 0;
+        document.getElementById('tour-mask').classList.add('visible');
+        _showGuideTourStep(0);
+    }
+
+    function _showGuideTourStep(index) {
+        if (index < 0 || index >= _guideTourSteps.length) {
+            endGuideTour();
+            return;
+        }
+
+        _guideTourStepIndex = index;
+        var step = _guideTourSteps[index];
+
+        var targetEl = document.querySelector(step.selector);
+        if (!targetEl) {
+            if (index < _guideTourSteps.length - 1) {
+                _showGuideTourStep(index + 1);
+            } else {
+                endGuideTour();
+            }
+            return;
+        }
+
+        var elRect = targetEl.getBoundingClientRect();
+        var pad = 4;
+        var spotLeft = elRect.left - pad;
+        var spotTop = elRect.top - pad;
+        var spotW = elRect.width + pad * 2;
+        var spotH = elRect.height + pad * 2;
+
+        // Move spotlight
+        var spotlight = document.getElementById('tour-spotlight');
+        spotlight.style.left = spotLeft + 'px';
+        spotlight.style.top = spotTop + 'px';
+        spotlight.style.width = spotW + 'px';
+        spotlight.style.height = spotH + 'px';
+
+        // Position tooltip — keep it visible and glide alongside the spotlight
+        var tooltip = document.getElementById('tour-tooltip');
+        var firstShow = !tooltip.classList.contains('visible');
+
+        var winW = window.innerWidth;
+        var winH = window.innerHeight;
+        var ttWidth = 320;
+        var ttHeight = 180;
+        var gap = 16;
+        var resolvedPos = step.tooltipPos;
+
+        // Auto-flip if tooltip would go off-screen
+        if (resolvedPos === 'right' && spotLeft + spotW + gap + ttWidth > winW) {
+            resolvedPos = 'left';
+        } else if (resolvedPos === 'left' && spotLeft - gap - ttWidth < 0) {
+            resolvedPos = 'right';
+        } else if (resolvedPos === 'below' && spotTop + spotH + gap + ttHeight > winH) {
+            resolvedPos = 'above';
+        } else if (resolvedPos === 'above' && spotTop - gap - ttHeight < 0) {
+            resolvedPos = 'below';
+        }
+
+        var ttLeft, ttTop;
+
+        if (resolvedPos === 'below') {
+            ttLeft = Math.max(gap, Math.min(spotLeft, winW - ttWidth - gap));
+            ttTop = spotTop + spotH + gap;
+        } else if (resolvedPos === 'above') {
+            ttLeft = Math.max(gap, Math.min(spotLeft, winW - ttWidth - gap));
+            ttTop = spotTop - ttHeight - gap;
+        } else if (resolvedPos === 'right') {
+            ttLeft = spotLeft + spotW + gap;
+            ttTop = Math.max(gap, Math.min(spotTop, winH - ttHeight - gap));
+        } else {
+            ttLeft = spotLeft - ttWidth - gap;
+            ttTop = Math.max(gap, Math.min(spotTop, winH - ttHeight - gap));
+        }
+
+        // Final boundary clamp
+        ttLeft = Math.max(gap, Math.min(ttLeft, winW - ttWidth - gap));
+        ttTop = Math.max(gap, Math.min(ttTop, winH - ttHeight - gap));
+
+        function writeContent() {
+            document.getElementById('tour-icon').textContent = step.icon;
+            document.getElementById('tour-title').textContent = step.title;
+            document.getElementById('tour-desc').textContent = step.desc;
+            document.getElementById('tour-counter').textContent = (index + 1) + ' / ' + _guideTourSteps.length;
+            var nextBtn = document.getElementById('tour-next-btn');
+            nextBtn.textContent = (index === _guideTourSteps.length - 1) ? 'Finish' : 'Next';
+        }
+
+        if (firstShow) {
+            // First step: position without transition, then fade in
+            tooltip.style.transition = 'none';
+            tooltip.style.left = ttLeft + 'px';
+            tooltip.style.top = ttTop + 'px';
+            void tooltip.offsetWidth; // force reflow
+            tooltip.style.transition = '';
+            writeContent();
+            requestAnimationFrame(function() {
+                tooltip.classList.add('visible');
+            });
+        } else {
+            // Subsequent steps: glide position via CSS transition, cross-fade content
+            tooltip.style.left = ttLeft + 'px';
+            tooltip.style.top = ttTop + 'px';
+            tooltip.classList.add('content-swapping');
+            setTimeout(function() {
+                writeContent();
+                tooltip.classList.remove('content-swapping');
+            }, 180);
+        }
+
+        // Auto advance (including auto-finish on the last step)
+        clearTimeout(_guideTourAutoTimer);
+        _guideTourAutoTimer = setTimeout(function() {
+            if (_guideTourRunning) nextGuideTourStep();
+        }, 6000);
+    }
+
+    function nextGuideTourStep() {
+        clearTimeout(_guideTourAutoTimer);
+        if (_guideTourStepIndex >= _guideTourSteps.length - 1) {
+            endGuideTour();
+        } else {
+            _showGuideTourStep(_guideTourStepIndex + 1);
+        }
+    }
+
+    function endGuideTour() {
+        clearTimeout(_guideTourAutoTimer);
+        _guideTourRunning = false;
+        var tooltip = document.getElementById('tour-tooltip');
+        tooltip.classList.remove('visible');
+        setTimeout(function() {
+            document.getElementById('tour-mask').classList.remove('visible');
+        }, 300);
+    }
+
+    // ESC key closes tour
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && _guideTourRunning) {
+            endGuideTour();
+        }
+    });
+
+</script>
+</html>

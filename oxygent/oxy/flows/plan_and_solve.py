@@ -1,0 +1,243 @@
+"""Plan-and-Solve flow for OxyGent.
+
+Implements an iterative planning workflow: decompose the goal into steps,
+execute each step via a worker agent, evaluate results, and replan if needed.
+"""
+
+import logging
+from typing import Any, Callable, Optional, Union
+
+from pydantic import BaseModel, Field
+
+from ...schemas import LLMResponse, Message, OxyRequest, OxyResponse, OxyState
+from ...utils.llm_pydantic_parser import PydanticOutputParser
+from ..base_flow import BaseFlow
+
+logger = logging.getLogger(__name__)
+
+
+class Plan(BaseModel):
+    """A structured execution plan containing ordered steps."""
+
+    steps: list[str] = Field(
+        description="different steps to follow, should be in sorted order"
+    )
+
+
+class Response(BaseModel):
+    """Wrapper for the final response returned to the user."""
+
+    response: str
+
+
+class Action(BaseModel):
+    """A single actionable step within a plan, with its assigned executor."""
+
+    action: Union[Response, Plan] = Field(
+        description="Action to perform. If you want to respond to user, use Response. "
+        "If you need to further use tools to get the answer, use Plan."
+    )
+
+
+class PlanAndSolve(BaseFlow):
+    """Plan-and-Solve prompting workflow.
+
+    Decomposes a user goal into ordered steps via a planner agent, executes
+    each step through an executor agent, and optionally replans after each
+    step using a replanner agent.  The loop continues until all steps are
+    completed or ``max_replan_rounds`` is exhausted.
+
+    Attributes:
+        max_replan_rounds: Maximum number of replanning iterations allowed.
+        planner_agent_name: Name of the agent that generates plans.
+        pre_plan_steps: Optional predefined steps prepended before planning.
+        enable_replanner: Whether to enable replanning after each step.
+        replanner_agent_name: Name of the agent used for replanning.
+        executor_agent_name: Name of the agent that executes individual steps.
+        llm_model: LLM model name used as a fallback summariser.
+    """
+
+    max_replan_rounds: int = Field(
+        30, description="Maximum number of replanning iterations allowed"
+    )
+
+    planner_agent_name: str = Field(
+        "planner_agent", description="Name of the agent used to generate plans"
+    )
+    pre_plan_steps: Optional[list[str]] = Field(
+        None, description="Predefined steps to prepend before the generated plan"
+    )
+
+    enable_replanner: bool = Field(
+        False, description="Whether to enable replanning after step failures"
+    )
+    replanner_agent_name: str = Field(
+        "replanner_agent",
+        description="Name of the agent used for replanning on failure",
+    )
+
+    executor_agent_name: str = Field(
+        "executor_agent",
+        description="Name of the agent that executes individual plan steps",
+    )
+
+    llm_model: str = Field("default_llm", description="LLM model name for fallback")
+
+    func_parse_planner_response: Optional[Callable[[str], LLMResponse]] = Field(
+        None, exclude=True, description="Custom parser for planner agent responses"
+    )
+
+    pydantic_parser_planner: PydanticOutputParser = Field(
+        default_factory=lambda: PydanticOutputParser(output_cls=Plan),
+        description="planner pydantic parser",
+    )
+
+    func_parse_replanner_response: Optional[Callable[[str], LLMResponse]] = Field(
+        None, exclude=True, description="replanner response parser"
+    )
+
+    pydantic_parser_replanner: PydanticOutputParser = Field(
+        default_factory=lambda: PydanticOutputParser(output_cls=Action),
+        description="replanner pydantic parser",
+    )
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the Plan-and-Solve flow."""
+        super().__init__(**kwargs)
+
+        self.add_permitted_tools(
+            [
+                self.planner_agent_name,
+                self.executor_agent_name,
+            ]
+        )
+
+    async def _execute(self, oxy_request: OxyRequest) -> OxyResponse:
+        """Run the plan-solve-evaluate-replan loop.
+
+        Plans the goal (unless pre-defined steps are provided), executes each
+        step sequentially, and optionally replans after every step.  Exits
+        early when all steps are completed or the replanner signals a final
+        response.
+
+        Args:
+            oxy_request: The incoming request containing the user query.
+
+        Returns:
+            An OxyResponse with the final answer.
+        """
+        plan_str = ""
+        past_steps = ""
+        original_query = oxy_request.get_query()
+        plan_steps = self.pre_plan_steps
+        plan_response = None
+        for current_round in range(self.max_replan_rounds + 1):
+            if (current_round == 0) and (self.pre_plan_steps is None):
+                if self.pydantic_parser_planner:
+                    query = self.pydantic_parser_planner.format(original_query)
+                else:
+                    query = original_query
+
+                oxy_response = await oxy_request.call(
+                    callee=self.planner_agent_name,
+                    arguments={"query": query},
+                )
+                if self.pydantic_parser_planner:
+                    plan_response = self.pydantic_parser_planner.parse(
+                        oxy_response.output
+                    )
+                else:
+                    plan_response = await self.func_parse_planner_response(
+                        oxy_response.output
+                    )
+                plan_steps = plan_response.steps
+                plan_str = "\n".join(
+                    f"{i + 1}. {step}" for i, step in enumerate(plan_steps)
+                )
+
+            task = plan_steps[0]
+            task_formatted = f"""
+                We have finished the following steps: {past_steps}
+                The current step to execute is:{task}
+                You should only execute the current step, and do not execute other steps in our plan. Do not execute more than one step continuously or skip any step.
+            """.strip()
+            executor_response = await oxy_request.call(
+                callee=self.executor_agent_name,
+                arguments={"query": task_formatted},
+            )
+            past_steps = (
+                past_steps
+                + "\n"
+                + f"task:{task}, execute task result:{executor_response.output}"
+            )
+            if self.enable_replanner:
+                # Replanning logic
+                query = f"""
+                The target of user is:
+                {original_query}
+
+                The origin plan is:
+                {plan_str}
+
+                We have finished the following steps:
+                {past_steps}
+
+                Please update the plan considering the mentioned information. If no more operation is supposed, Use **Response** to answer the user.
+                Otherwise, please update the plan. The plan should only contain the steps to be executed, and do not
+                include the past steps or any other information.
+                """
+                if self.pydantic_parser_replanner:
+                    query = self.pydantic_parser_replanner.format(query)
+
+                replanner_response = await oxy_request.call(
+                    callee=self.replanner_agent_name,
+                    arguments={
+                        "query": query,
+                    },
+                )
+                if self.pydantic_parser_replanner:
+                    plan_response = self.pydantic_parser_replanner.parse(
+                        replanner_response.output
+                    )
+                else:
+                    plan_response = await self.func_parse_planner_response(
+                        replanner_response.output
+                    )
+
+                if hasattr(plan_response.action, "response"):
+                    return OxyResponse(
+                        state=OxyState.COMPLETED,
+                        output=plan_response.action.response,
+                    )
+                else:
+                    plan_response = plan_response.action
+                    plan_steps = plan_response.steps
+                    plan_str = "\n".join(
+                        f"{i + 1}. {step}" for i, step in enumerate(plan_steps)
+                    )
+            else:
+                plan_steps = plan_steps[1:]
+
+                if 0 == len(plan_steps):
+                    return OxyResponse(
+                        state=OxyState.COMPLETED,
+                        output=executor_response.output,
+                    )
+
+        plan_steps = plan_response.steps
+        plan_str = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(plan_steps))
+        user_input_with_results = f"Your objective was this:{oxy_request.get_query()}\n---\nFor the following plan:{plan_str}"
+        temp_messages = [
+            Message.system_message(
+                "Please answer user questions based on the given plan."
+            ),
+            Message.user_message(user_input_with_results),
+        ]
+        oxy_response = await oxy_request.call(
+            callee=self.llm_model,
+            arguments={"messages": [msg.to_dict() for msg in temp_messages]},
+        )
+        return OxyResponse(
+            state=OxyState.COMPLETED,
+            output=oxy_response.output,
+        )

@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <!-- 强制不缓存的 meta 标签 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="shortcut icon" href="./image/group-favicon.png" type="image/x-icon">
+    <title>Node Explorer - OxyGent</title>
+    <link href="./css/normalize.css" rel="stylesheet">
+    <link href="./css/node.css" rel="stylesheet">
+    <link href="./css/style_load1.css" rel="stylesheet">
+    <link href="./css/main.css" rel="stylesheet">
+    <link href="./css/gantt.css" rel="stylesheet">
+    <link href="./css/flowchart_view1.css" rel="stylesheet">
+    <link href="./css/swimlane.css" rel="stylesheet">
+    <link href="./css/timeline.css" rel="stylesheet">
+    <link href="./css/guide.css" rel="stylesheet">
+
+    <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="./js/marked.min.js"></script>
+    <script src="./js/mermaid.min.js"></script>
+
+    <script src="./js/mermaid-sdk-gantt.js"></script>
+    <script src="./js/utils.js"></script>
+    <script src='./js/autosize.js'></script>
+    <script src="./js/flowchart.js"></script>
+    <script src="./js/swimlane.js"></script>
+    <script src="./js/timeline.js"></script>
+</head>
+<body>
+
+<div class="node-header">
+    <div class="node-header-left">
+        <img class="node-header-logo" src="./image/group-favicon.png" alt="">
+        <span class="node-header-title">Node Explorer</span>
+    </div>
+    <div class="node-header-center">
+        <div class="tabs">
+            <div class="tab-item tab-text-active" data-id="flowchart-container">
+                <span class="tab-text">Flowchart</span>
+            </div>
+            <div class="tab-item" data-id="gantt-container-section">
+                <span class="tab-text">Gantt</span>
+            </div>
+            <div class="tab-item" data-id="swimlane-container-section">
+                <span class="tab-text">Swimlane</span>
+            </div>
+            <div class="tab-item" data-id="timeline-container-section">
+                <span class="tab-text">Timeline</span>
+            </div>
+        </div>
+    </div>
+    <div class="node-header-right">
+        <label class="flowchart-toggle-master" id="flowchartMasterLabel" title="Show the outermost master agent wrapper in the flowchart">
+            <input type="checkbox" id="flowchartMasterToggle" onchange="toggleFlowchartMaster(this.checked)">
+            <span class="flowchart-toggle-slider"></span>
+            <span class="flowchart-toggle-text">Master Node</span>
+        </label>
+        <button class="node-header-btn" onclick="handleCollapse()" id="collapseToggleBtn" title="Toggle Graph">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,9 7,5 11,9"/></svg>
+            <span>Graph</span>
+        </button>
+        <button class="node-header-btn" onclick="startGuideTour()" title="Feature Guide">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="7"/><path d="M6 6a2 2 0 1 1 2.5 1.9c-.5.3-.5.6-.5 1.1"/><circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none"/></svg>
+            <span>Guide</span>
+        </button>
+        <button class="node-header-btn" onclick="window.open('index.html', '_self')">
+            <img src="./image/arrow-left.svg" alt=""/>
+            Back
+        </button>
+    </div>
+</div>
+
+<div class="node-warpper">
+    <!-- 这部分要滚动吸顶 -->
+    <div class="node-container-top">
+    <div id="node-node-map" class="card">
+        <div class="collapse-card" id="collapseExample">
+            <div class="tab-content">
+                <div id="flowchartId">
+                    <div id="flowchart-container" class="view1-flowchart"></div>
+                    <div id="flowchart-container-gantt"></div>
+                    <div id="swimlane-container" style="display:none;"></div>
+                    <div id="timeline-container" style="display:none;"></div>
+                </div>
+            </div>
+            <div class="resize-handle" id="resizeHandle"></div>
+        </div>
+        <!--        <div id="chart_log_close">-->
+        <!--            <button id="chart_log_close_id">-->
+        <!--                <img src="./image/group_close.svg" alt=""/>-->
+        <!--            </button>-->
+        <!--        </div>-->
+    </div>
+    <div class="agentCard">
+        <div id="avatarEmojiId" class="avatarEmoji"></div>
+        <span id="node_callee" class="agentName"></span>
+        <div class="tagContainer">
+            <span id="node_type" class="tagspan"></span>
+        </div>
+        <span class="agentCard-separator"></span>
+        <span id="trace_id" class="metaInfo"></span>
+        <span class="agentCard-separator"></span>
+        <span class="metaInfo">caller: <span id="node_caller" class="ellipsisspan metaInfo"></span></span>
+    </div>
+    </div>
+    <div class="node-container">
+        <div class="node-left">
+            <div class="mod-header">
+                <div class="mod-header-title">
+                    Configuration
+                </div>
+                <div class="mod-header-operation">
+                    <button class="mod-header-operation-btn" id="pre" onclick="pre()">
+                        <img src="./image/arrow-left.svg" alt="">
+                        Pre
+                    </button>
+                    <button class="mod-header-operation-btn" id="next" onclick="next()">
+                        <img src="./image/arrow-right.svg" alt="">
+                        Next
+                    </button>
+                    <button class="mod-header-operation-btn" id="call_llm" onclick="call_llm()">
+                        <img src="./image/refresh.svg" alt="">
+                        Regenerate
+                    </button>
+                </div>
+
+            </div>
+            <div class="mod-container">
+                <div class="mod-left" id="modLeftClassAttrId">
+                    <div id="classAttrId" class=""></div>
+                </div>
+                <div class="mod-right" id="rightArgumentsId">
+                    <div id="argumentsId" class=""></div>
+                </div>
+            </div>
+        </div>
+        <div class="node-right" id="rightPlayGroundId">
+            <div class="right_top">
+                <span>PlayGround</span>
+            </div>
+            <div class="right_content">
+                <div id="llm_result"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Guide Tour Overlay -->
+<div class="tour-mask" id="tour-mask">
+    <div class="tour-spotlight" id="tour-spotlight"></div>
+    <div class="tour-tooltip" id="tour-tooltip">
+        <div class="tour-tooltip-icon" id="tour-icon"></div>
+        <div class="tour-tooltip-title" id="tour-title"></div>
+        <div class="tour-tooltip-desc" id="tour-desc"></div>
+        <div class="tour-tooltip-step">
+            <span class="tour-tooltip-counter" id="tour-counter"></span>
+            <div class="tour-tooltip-nav">
+                <button class="tour-tooltip-btn" id="tour-skip-btn" onclick="endGuideTour()">Skip</button>
+                <button class="tour-tooltip-btn primary" id="tour-next-btn" onclick="nextGuideTourStep()">Next</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+<script>
+    let agent_id_dict = null;
+    const agentImgMap = [
+        {bgColor: '#FEEAD4', imgUrl: './image/agents/agent_0.png'},
+        {bgColor: '#E4FBCC', imgUrl: './image/agents/agent_1.png'},
+        {bgColor: '#D3F8DF', imgUrl: './image/agents/agent_2.png'},
+        {bgColor: '#E0F2FE', imgUrl: './image/agents/agent_3.png'},
+        {bgColor: '#E0EAFF', imgUrl: './image/agents/agent_4.png'},
+        {bgColor: '#EFF1F5', imgUrl: './image/agents/agent_5.png'},
+        {bgColor: '#FBE8FF', imgUrl: './image/agents/agent_6.png'},
+        {bgColor: '#FBE7F6', imgUrl: './image/agents/agent_7.png'},
+        {bgColor: '#FEF7C4', imgUrl: './image/agents/agent_8.png'},
+        {bgColor: '#E6F4D7', imgUrl: './image/agents/agent_9.png'},
+        {bgColor: '#D5F5F6', imgUrl: './image/agents/agent_10.png'},
+        {bgColor: '#D2E9FF', imgUrl: './image/agents/agent_11.png'},
+        {bgColor: '#D1DFFF', imgUrl: './image/agents/agent_12.png'},
+        {bgColor: '#D5D9EB', imgUrl: './image/agents/agent_13.png'},
+        {bgColor: '#EBE9FE', imgUrl: './image/agents/agent_14.png'},
+        {bgColor: '#FFE4E8', imgUrl: './image/agents/agent_15.png'},
+    ];
+
+    const typeMap = {
+        llm: './image/org_model.svg',
+        tool: './image/org_tool.svg',
+        model: './image/org_model.svg',
+        flow: './image/org_flow.svg',
+        bank: './image/org_knowledge.svg',
+        memory_bank: './image/org_memory.svg',
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const param_id = urlParams.get('id');
+    var pre_id = "";
+    var next_id = "";
+    var plan_data = {};
+
+    (function () {
+    // 使用 sessionStorage 避免刷新死循环
+    if (!sessionStorage.getItem('page_refreshed')) {
+        sessionStorage.setItem('page_refreshed', '1');
+    }
+    })();
+
+    $(document).ready(function () {
+        var saved = localStorage.getItem('flowchart_show_master') !== 'false';
+        $('#flowchartMasterToggle').prop('checked', saved);
+        intiNode()
+    })
+
+    function toggleFlowchartMaster(checked) {
+        localStorage.setItem('flowchart_show_master', checked ? 'true' : 'false');
+        if (ViewsDatas && ViewsDatas.length > 0) {
+            renderFlowchart(ViewsDatas, 'flowchart-container');
+            var currentId = getCurrentNodeId();
+            highlightNodeInView('view1', currentId);
+        }
+    }
+
+    function intiNode() {
+        $.ajax({
+            type: "GET",
+            url: "../get_organization",
+            success: function (response) {
+                response = response.data;
+                agent_id_dict = response.id_dict;
+                getViews();
+            }
+        })
+    }
+
+    function get_plan(plan_id) {
+        // View 1 (flowchart) — toggle 'checked'
+        $('.view1-node').each((i, ele) => {
+            $(ele).removeClass('checked');
+        });
+        $('.view1-container').each((i, ele) => {
+            $(ele).removeClass('checked');
+        });
+        $(`#${plan_id}`).addClass('checked');
+
+        // View 2 (Gantt) — toggle 'mermaid-selected' / 'mermaid-selected-text'
+        document.querySelectorAll('#flowchart-container-gantt .task').forEach(node => {
+            if (node.id === plan_id) {
+                node.classList.add('mermaid-selected');
+            } else {
+                node.classList.remove('mermaid-selected');
+            }
+        });
+        document.querySelectorAll('#flowchart-container-gantt .taskText, #flowchart-container-gantt .taskTextOutsideRight, #flowchart-container-gantt .taskTextOutsideLeft').forEach(node => {
+            if (node.id === `${plan_id}-text`) {
+                node.classList.add('mermaid-selected-text');
+            } else {
+                node.classList.remove('mermaid-selected-text');
+            }
+        });
+
+        // View 3 (Swimlane) — toggle 'checked' on all matching arrows (forward + return)
+        $('#swimlane-container .seq-msg').removeClass('checked');
+        $('#swimlane-container .seq-msg[data-node-id="' + plan_id + '"]').addClass('checked');
+
+        // View 4 (Timeline) — toggle 'checked' on the matching chain node
+        $('#timeline-container .view4-node').removeClass('checked');
+        $('#timeline-container .view4-node[data-node-id="' + plan_id + '"]').addClass('checked');
+
+        $.ajax({
+            type: "GET",
+            url: "../node",
+            data: {
+                item_id: plan_id
+            },
+            success: function (v) {
+                const data_range_map = v.data.data_range_map;
+
+                plan_data = v.data;
+                pre_id = plan_data.pre_id;
+                if (pre_id === "" || pre_id === undefined) {
+                    $("#pre").prop("disabled", true);
+                } else {
+                    $("#pre").prop("disabled", false);
+                }
+                next_id = plan_data.next_id;
+                if (next_id === "" || pre_id === undefined) {
+                    $("#next").prop("disabled", true);
+                } else {
+                    $("#next").prop("disabled", false);
+                }
+                // 展示图像
+                let img = '';
+                if (plan_data.node_type === 'agent' || plan_data.node_type === 'flow') {
+                    const rawIdx = agent_id_dict ? agent_id_dict[plan_data.callee] : undefined;
+                    const idx = (rawIdx != null ? rawIdx : 0) % 16;
+                    const cur = agentImgMap[idx];
+                    img = `<img alt="" src="${cur.imgUrl}" style="background-color: ${cur.bgColor}" />`;
+                } else {
+                    img = `<img alt="" src="${typeMap[plan_data.node_type]}" style="background-color: #E1EFFD" />`;
+                }
+
+                resetHtmlEmpty();
+                $("#avatarEmojiId").append(img);
+
+                // 展示node base info
+                $("#node_caller").text(plan_data.caller);
+                $("#node_callee").text(plan_data.callee);
+                $("#node_create_time").text(plan_data.create_time);
+                $("#messages").empty();
+                // 展示参数class_attr  需要展示多个参数
+
+                if (plan_data.input.class_attr) {
+                    Object.entries(plan_data.input.class_attr).forEach(([key, value]) => {
+                        const typeValue = getType(value);
+                        
+                        // 如果是字符串，直接渲染那
+                        if (typeValue === "boolean") {
+                            var numberHtml = value ? `
+                             <div class="cnt-switch">
+                                <span class="tit">${key}:</span>
+                                <label class="switch">
+                                    <input data-key="${key}" data-type="${typeValue}" id="${key}" type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        ` : `<div class="cnt-switch">
+                                <span class="tit">${key}:</span>
+                                <label class="switch">
+                                    <input data-key="${key}" data-type="${typeValue}" id="${key}" type="checkbox">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>`
+                            $('#classAttrId').append(numberHtml);
+                        }
+                        if (typeValue === "number") {
+                            var numberHtml = `
+                            <div class="cnt_col">
+                                <label class="text_x_6">${key}:</label>
+                                <div class="text_x_8_wrap">
+                                    <input data-key="${key}" data-type="${typeValue}" id="${key}" type="text" class="text_x_8" value="${value}"/>
+                                </div>
+                            </div>`
+                            $('#classAttrId').append(numberHtml);
+                        }
+                        if (typeValue === "string") {
+                            var stringHtml = `
+                            <div class="cnt_col">
+                                <label class="text_x_6">${key}:</label>
+                                <div class="text_x_8_wrap">
+                                    <input data-key="${key}" data-type="${typeValue}" id="${key}" type="text" class="text_x_8" value="${value}"/>
+                                </div>
+                            </div>
+                        `
+                            $('#classAttrId').append(stringHtml);
+                        }
+                        if (typeValue === "object") {
+                            const prekey = key;
+                            Object.entries(value).forEach(([key, value]) => {
+                                var innerTypeValue = getType(value);
+                                if (innerTypeValue === "number") {
+                                    var numberHtmlValue = `
+                                    <div class="cnt_col">
+                                        <label class="text_x_6">${key}:</label>
+                                        <div class="text_x_8_wrap">
+                                            <input data-pre-key="${prekey}" data-key="${key}" data-type="${typeValue}" id="${key}" type="text" class="text_x_8" value="${value}"/>
+                                        </div>
+                                    </div>
+                                `
+                                    $('#classAttrId').append(numberHtmlValue);
+                                }
+                                if (innerTypeValue === "string") {
+                                    var stringHtml = `
+                                        <div class="cnt_col">
+                                            <label class="text_x_6">${key}:</label>
+                                            <div class="text_x_8_wrap">
+                                                <input data-pre-key="${prekey}" data-key="${key}" data-type="${typeValue}" id="${key}" type="text" class="text_x_8" value="${value}"/>
+                                            </div>
+                                        </div>
+                                    `
+                                    $('#classAttrId').append(stringHtml);
+                                }
+                            })
+                        }
+                    });
+                }
+
+                // 展示messages
+                if (plan_data && plan_data.input && plan_data.input.arguments) {
+                    Object.entries(plan_data.input.arguments).forEach(([key, value]) => {
+                        const typeValue = getType(value);
+                        if (typeValue === "string" || typeValue === "number") {
+                            var stringHtml = `
+                                <div class="mod-right-cnt_col">
+                                    <label class="text_x_6">${key}:</label>
+                                    <div class="mod-right-text_x_8_wrap">
+                                        <textarea data-key="${key}" data-type="${typeValue}" id="${key}"  
+                                            placeholder="None" class="text_x_8 ">${value}</textarea>
+                                    </div>
+                                </div>
+                            `
+                            $('#argumentsId').append(stringHtml);
+                        }
+                        
+                        if (typeValue === "array") {
+                            const argumentPrekey = key;
+                            value.forEach(({role, content}) => {
+                                var stringHtml = `
+                                    <div class="mod-right-cnt_col">
+                                        <label class="text_x_6">${role}:</label>
+                                        <div class="mod-right-text_x_8_wrap">
+                                            <textarea data-pre-key="${argumentPrekey}" data-key="${key}" data-type="${typeValue}" data-role="${role}" rows="4" cols="50" id="${role}"  placeholder="None" class="text_x_8">${content}</textarea>
+                                        </div>
+                                    </div>
+                                `
+                                $('#argumentsId').append(stringHtml);
+                            })
+                        }
+                    })
+                }
+                autosize(document.querySelectorAll('textarea'));
+
+                // 展示plan基本信息
+                $("#node_type").text(plan_data.node_type);
+                $("#trace_id").text('trace_id: ' + plan_data.trace_id);
+
+                // 展示结果（切换节点时只展示原始结果）
+
+                var _resutData = renderPlayGround(plan_data, true)
+                $("#llm_result").html(_resutData);
+                updateURLParameter('id', plan_data.node_id);
+                if (plan_data.node_type === 'llm') {
+                    $("#call_llm").prop("disabled", false);
+                } else {
+                    $("#call_llm").prop("disabled", true);
+                }
+            }
+        });
+    }
+
+    function updateURLParameter(paramName, paramValue) {
+        const url = new URL(window.location.href);
+        const params = new URLSearchParams(url.search);
+
+        // 如果参数已存在，则更新其值；否则，添加新参数
+        if (params.has(paramName)) {
+            params.set(paramName, paramValue);
+        } else {
+            params.append(paramName, paramValue);
+        }
+
+        // 使用 pushState() 更新 URL，避免页面刷新
+        const newUrl = `${url.origin}${url.pathname}?${params.toString()}${url.hash}`;
+        window.history.pushState({path: newUrl}, '', newUrl);
+    }
+
+
+    function pre() {
+        get_plan(pre_id);
+    }
+
+    function next() {
+        get_plan(next_id);
+    }
+
+    var currentXhr = null;
+    var isGenerating = false;
+
+    // 重新生成逻辑
+    function call_llm() {
+        // 如果正在生成，点击则停止
+        if (isGenerating && currentXhr) {
+            currentXhr.abort();
+            currentXhr = null;
+            isGenerating = false;
+            $("#regen-loading").remove();
+            $("#call_llm").html('<img src="./image/refresh.svg" alt=""> Regenerate').prop("disabled", false);
+            return;
+        }
+
+        var class_attrData = {};
+        Array.from($('#modLeftClassAttrId input')).forEach(($input) => {
+            const key = $($input).attr('data-key');
+            const type = $($input).attr('data-type');
+            if (type === "string") {
+                class_attrData[key] = $($input).val();
+            }
+            if (type === "number") {
+                class_attrData[key] = Number($($input).val());
+            }
+            if (type === "boolean") {
+                class_attrData[key] = $($input).prop('checked');
+            }
+            if (type === "object") {
+                const preType = $($input).attr('data-pre-key');
+                if (!class_attrData[preType]) class_attrData[preType] = {};
+                class_attrData[preType][key] = $($input).val();
+            }
+        })
+
+        var arguments = {};
+        Array.from($('#rightArgumentsId textarea')).forEach((element) => {
+            const key = $(element).attr('data-key');
+            const type = $(element).attr('data-type');
+            if (type === "string") {
+                arguments[key] = $(element).val();
+            }
+            if (type === "number") {
+                arguments[key] = Number($(element).val());
+            }
+            if (type === "array") {
+                const preType = $(element).attr('data-pre-key');
+                const role = $(element).attr('data-role');
+                if (!arguments[preType]) arguments[preType] = [];
+                arguments[preType].push({ role: role, content: $(element).val() });
+            }
+        })
+        Array.from($('#rightArgumentsId input')).forEach((element) => {
+            const key = $(element).attr('data-key');
+            const type = $(element).attr('data-type');
+            if (type === "string") {
+                arguments[key] = $(element).val();
+            }
+            if (type === "array") {
+                const preType = $(element).attr('data-pre-key');
+                const role = $(element).attr('data-role');
+                if (!arguments[preType]) arguments[preType] = [];
+                arguments[preType].push({ role: role, content: $(element).val() });
+            }
+        })
+
+        // loading + 按钮切换为 Stop
+        $("#llm_result").append('<div class="loading" id="regen-loading"> <span></span> <span></span> <span></span> <span></span> <span></span> </div>');
+        isGenerating = true;
+        $("#call_llm").html('<img src="./image/refresh.svg" alt=""> Stop').prop("disabled", false);
+
+        // 立即滚动到底部，让用户看到 loading 动画
+        const scrollContainer = $('.right_content');
+        scrollContainer.scrollTop(scrollContainer[0].scrollHeight);
+
+        currentXhr = $.ajax({
+            type: "POST",
+            url: "../call",
+            data: JSON.stringify({
+                class_attr: class_attrData,
+                arguments: arguments
+            }),
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (response_data) {
+                $("#regen-loading").remove();
+                if (response_data.code !== 200) {
+                    const errMsg = response_data.message || 'Unknown error';
+                    $("#llm_result").append(renderErrorBubble(errMsg));
+                } else {
+                    const htmlData = renderPlayGround({
+                        ...plan_data,
+                        ...response_data.data
+                    }, false);
+                    $("#llm_result").append(htmlData);
+                }
+                // 自动滚动到底部
+                const scrollContainer = $('.right_content');
+                scrollContainer.scrollTop(scrollContainer[0].scrollHeight);
+            },
+            error: function (xhr, status) {
+                $("#regen-loading").remove();
+                if (status === 'abort') return;
+                let errMsg = 'Request failed';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errMsg = xhr.responseJSON.message;
+                } else if (xhr.responseText) {
+                    errMsg = xhr.responseText;
+                } else if (status) {
+                    errMsg = status;
+                }
+                $("#llm_result").append(renderErrorBubble(errMsg));
+                const scrollContainer = $('.right_content');
+                scrollContainer.scrollTop(scrollContainer[0].scrollHeight);
+            },
+            complete: function () {
+                isGenerating = false;
+                currentXhr = null;
+                $("#call_llm").html('<img src="./image/refresh.svg" alt=""> Regenerate').prop("disabled", false);
+            }
+        });
+    }
+
+    function renderPlayGround(data, isFirst) {
+        const agentName = data.callee;
+        const rawOutput = data.output || '';
+        const renderedMd = marked.parse(rawOutput);
+        const itemId = 'pg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+
+        let imgUrl = '';
+        let bgColor = '#E1EFFD';
+        if (data.node_type === 'agent' || data.node_type === 'flow') {
+            const rawIdx = agent_id_dict ? agent_id_dict[data.callee] : undefined;
+            const idx = (rawIdx != null ? rawIdx : 0) % 16;
+            const cur = agentImgMap[idx];
+            imgUrl = cur.imgUrl;
+            bgColor = cur.bgColor;
+        } else {
+            imgUrl = typeMap[data.node_type];
+        }
+
+        const deleteBtn = isFirst ? '' : `<button class="pg-delete-btn" onclick="deletePgItem('${itemId}')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>`;
+
+        const html = `
+            <div class="pg-item" id="${itemId}">
+                <div class="pg-avatar" style="background-color: ${bgColor}">
+                    <img alt="" src="${imgUrl}" />
+                </div>
+                <div class="pg-bubble">
+                    <div class="pg-bubble-header">
+                        <span class="pg-item-name">${agentName}</span>
+                        ${isFirst ? '' : '<span class="regen-badge">Regenerated</span>'}
+                        ${deleteBtn}
+                        <div class="pg-item-actions">
+                            <div class="output-toggle-group">
+                                <button class="output-toggle-btn active" onclick="togglePgView('${itemId}', 'md', this)">Markdown</button>
+                                <button class="output-toggle-btn" onclick="togglePgView('${itemId}', 'raw', this)">Raw</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pg-item-body markdown-body pg-md-view">${renderedMd}</div>
+                    <pre class="pg-item-body pg-raw-view" style="display:none;">${escapeHtml(rawOutput)}</pre>
+                </div>
+            </div>
+        `;
+        return html;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderErrorBubble(errMsg) {
+        return `
+            <div class="pg-item pg-error-item">
+                <div class="pg-avatar" style="background-color: #FEE2E2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <div class="pg-bubble">
+                    <div class="pg-bubble-header">
+                        <span class="pg-item-name" style="color:#EF4444">Error</span>
+                    </div>
+                    <div class="pg-item-body" style="background:#FEF2F2; color:#991B1B;">
+                        <pre style="margin:0; white-space:pre-wrap; word-break:break-word; font-size:13px; font-family:monospace; color:inherit;">${escapeHtml(errMsg)}</pre>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function togglePgView(itemId, mode, btn) {
+        const item = document.getElementById(itemId);
+        const mdView = item.querySelector('.pg-md-view');
+        const rawView = item.querySelector('.pg-raw-view');
+        const btns = item.querySelectorAll('.output-toggle-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (mode === 'md') {
+            mdView.style.display = '';
+            rawView.style.display = 'none';
+        } else {
+            mdView.style.display = 'none';
+            rawView.style.display = '';
+        }
+    }
+
+    function deletePgItem(itemId) {
+        $('#' + itemId).remove();
+    }
+
+
+    // 初始化 Mermaid
+    mermaid.initialize({
+        theme: 'mermaid',
+        themeVariables: {
+            'curve': 'stepAfter'  // 使用直角连接线
+        },
+        startOnLoad: false,
+        flowchart: {
+            useMaxWidth: true,
+            // htmlLabels: true,
+            curve: 'stepAfter'
+        },
+        securityLevel: 'loose',
+        gantt: {
+            barHeight: 24,
+            barGap: 10,
+            fontSize: 14,
+            numberSectionStyles: 4,
+            axisFormat: "%M:%S:%L",
+            tickInterval: "millisecond",
+            topAxis: false,
+            leftPadding: 120,
+            rightPadding: 20,
+        }
+    });
+
+    var ViewsDatas = []
+
+    //  获取全局节点
+    function getViews() {
+        $.ajax({
+            type: "GET",
+            url: "../view",
+            data: {
+                item_id: param_id
+            },
+            success: function (plan_data) {
+                ViewsDatas = plan_data.data.nodes;
+                renderFlowchart(ViewsDatas, 'flowchart-container');
+                get_plan(param_id);
+            }
+        });
+    }
+
+    function resetHtmlEmpty() {
+        $('#avatarEmojiId').empty();
+        $('#classAttrId').empty();
+        $('#argumentsId').empty();
+    }
+
+    //  处理gantt点击事件
+    function renderGanttClick(v) {
+        // resetHtmlEmpty()
+        // get_plan(v)
+    }
+
+    function renderGanttClickHighlight(id, tagName = 'rect') {
+        let server_id = null;
+        // Selector covering all task-text variants (inside bar, outside-right, outside-left)
+        const taskTextSel = '.taskText, .taskTextOutsideRight, .taskTextOutsideLeft';
+        if (tagName === 'rect') {
+            // 移除所有节点的选中样式
+            document.querySelectorAll('.task').forEach(node => {
+                if (node.id === id) {
+                    node.classList.add('mermaid-selected');
+                } else {
+                    node.classList.remove('mermaid-selected');
+                }
+            });
+
+            // 移除所有节点的选中文本样式
+            document.querySelectorAll(taskTextSel).forEach(node => {
+                if (node.id === `${id}-text`) {
+                    node.classList.add('mermaid-selected-text');
+                } else {
+                    node.classList.remove('mermaid-selected-text');
+                }
+            });
+            server_id = id;
+        }else if (tagName === 'text') {
+            // 移除所有节点的选中样式
+            document.querySelectorAll('.task').forEach(node => {
+                if (node.id === id.replace('-text', '')) {
+                    node.classList.add('mermaid-selected');
+                } else {
+                    node.classList.remove('mermaid-selected');
+                }
+            });
+            // 移除所有节点的选中文本样式
+            document.querySelectorAll(taskTextSel).forEach(node => {
+                if (node.id === id) {
+                    node.classList.add('mermaid-selected-text');
+                } else {
+                    node.classList.remove('mermaid-selected-text');
+                }
+            });
+            server_id = id.replace('-text', '');
+        }
+        get_plan(server_id)
+    }
+    
+
+    $('#flowchart-container-gantt').on('click', function (event) {
+        const state = event.target;
+        const id = state.id;
+        const tagName = state.tagName;
+        if (!id) {
+            return;
+        }
+        // Only react to real task bars (rect.task) or task labels — including
+        // taskTextOutsideRight/Left, which mermaid uses when the bar is too
+        // narrow (very short-running tools) to fit its label inside.
+        // Mermaid generates other id-bearing elements like `exclude-YYYY-MM-DD`
+        // for axis exclude-range rects, which are NOT valid node_ids and would
+        // crash get_plan() when looked up on the server.
+        const cls = (state.getAttribute && state.getAttribute('class')) || '';
+        const isTaskRect = tagName === 'rect' && /\btask\b/.test(cls);
+        const isTaskText = tagName === 'text' && /\b(taskText|taskTextOutsideRight|taskTextOutsideLeft)\b/.test(cls);
+        if (!isTaskRect && !isTaskText) {
+            return;
+        }
+        // Extra safety: the node_id we feed back must exist in ViewsDatas.
+        const candidateId = tagName === 'text' ? id.replace(/-text$/, '') : id;
+        const exists = Array.isArray(ViewsDatas) &&
+            ViewsDatas.some(function (n) { return n && n.node_id === candidateId; });
+        if (!exists) {
+            return;
+        }
+        renderGanttClickHighlight(id, tagName);
+    })
+
+    $('#swimlane-container').on('click', '.seq-msg-clickable', function () {
+        var nodeId = $(this).attr('data-node-id');
+        if (nodeId) {
+            $('#swimlane-container .seq-msg').removeClass('checked');
+            $('#swimlane-container .seq-msg[data-node-id="' + nodeId + '"]').addClass('checked');
+            get_plan(nodeId);
+        }
+    });
+
+    $('#timeline-container').on('click', '.view4-node', function () {
+        var nodeId = $(this).attr('data-node-id');
+        if (!nodeId) return;
+        $('#timeline-container .view4-node').removeClass('checked');
+        $(this).addClass('checked');
+        get_plan(nodeId);
+    });
+
+
+
+    // Helper: get the currently-selected node_id from the URL query string.
+    function getCurrentNodeId() {
+        return new URLSearchParams(window.location.search).get('id') || '';
+    }
+
+    // Helper: re-apply selection highlight to a specific view after it is
+    // (re-)rendered.  Called by the tab-switch handler below so every view
+    // shows the same active node.
+    function highlightNodeInView(viewName, nodeId) {
+        if (!nodeId) return;
+        switch (viewName) {
+            case 'view1':
+                $('.view1-node').removeClass('checked');
+                $('.view1-container').removeClass('checked');
+                // view1 nodes use their node_id as the element id
+                $('#' + CSS.escape(nodeId)).addClass('checked');
+                break;
+            case 'view2':
+                renderGanttClickHighlight(nodeId, 'rect');
+                break;
+            case 'view3':
+                $('#swimlane-container .seq-msg').removeClass('checked');
+                $('#swimlane-container .seq-msg[data-node-id="' + nodeId + '"]').addClass('checked');
+                break;
+            case 'view4':
+                $('#timeline-container .view4-node').removeClass('checked');
+                $('#timeline-container .view4-node[data-node-id="' + nodeId + '"]').addClass('checked');
+                break;
+        }
+    }
+
+    $(".tabs .tab-item").click(function () {
+        // 链式编程操作
+        // 2.点击的同时，得到当前li 的索引号
+        var index = $(this).attr('data-id');
+        $(this).addClass("tab-text-active").siblings().removeClass("tab-text-active");
+        var currentId = getCurrentNodeId();
+
+        if (index === 'flowchart-container') {
+            renderFlowchart(ViewsDatas, 'flowchart-container');
+            $('#flowchart-container').css('display', 'flex');
+            $('#flowchart-container-gantt').css('display', 'none');
+            $('#swimlane-container').css('display', 'none');
+            $('#timeline-container').css('display', 'none');
+            $('#flowchartMasterLabel').css('display', '');
+            highlightNodeInView('view1', currentId);
+
+        } else if (index === 'gantt-container-section') {
+            renderGantt(ViewsDatas, 'flowchart-container-gantt');
+            $('#flowchart-container').css('display', 'none');
+            $('#flowchart-container-gantt').css('display', 'block');
+            $('#swimlane-container').css('display', 'none');
+            $('#timeline-container').css('display', 'none');
+            $('#flowchartMasterLabel').css('display', 'none');
+
+            setTimeout(() => {
+                highlightNodeInView('view2', currentId);
+            }, 100);
+        } else if (index === 'swimlane-container-section') {
+            renderSwimlane(ViewsDatas, 'swimlane-container');
+            $('#flowchart-container').css('display', 'none');
+            $('#flowchart-container-gantt').css('display', 'none');
+            $('#swimlane-container').css('display', 'block');
+            $('#timeline-container').css('display', 'none');
+            $('#flowchartMasterLabel').css('display', 'none');
+            highlightNodeInView('view3', currentId);
+        } else if (index === 'timeline-container-section') {
+            renderTraceChain(ViewsDatas, 'timeline-container');
+            $('#flowchart-container').css('display', 'none');
+            $('#flowchart-container-gantt').css('display', 'none');
+            $('#swimlane-container').css('display', 'none');
+            $('#timeline-container').css('display', 'flex');
+            $('#flowchartMasterLabel').css('display', 'none');
+            highlightNodeInView('view4', currentId);
+        }
+        // 3.让下部里面相应索引号的item显示，其余的item隐藏
+    });
+
+
+    function handleCollapse() {
+        const _visible = $('#collapseExample').css('display');
+        const btn = document.getElementById('collapseToggleBtn');
+        if (_visible === 'block') {
+            $('#collapseExample').css({
+                'display': 'none'
+            });
+            btn && btn.classList.add('collapsed');
+            adjustModLeftHeight('modLeftClassAttrId')
+            adjustModLeftHeight('rightArgumentsId')
+        } else {
+            $('#collapseExample').css('display', 'block');
+            btn && btn.classList.remove('collapsed');
+            adjustModLeftHeight('modLeftClassAttrId')
+            adjustModLeftHeight('rightArgumentsId')
+        }
+    }
+
+    // 流程图选中逻辑
+    $('#flowchart-container').on('click', function (event) {
+        let aimDom = $(event.target);
+        let id = null;
+        while (!id && aimDom.attr('id') !== 'flowchart-container') {
+            if (aimDom.attr('id')) {
+                id = aimDom.attr('id');
+            } else {
+                aimDom = aimDom.parent();
+            }
+        }
+
+        if (id) {
+            get_plan(id);
+        }
+    });
+
+    // 动态调整modLeftClassAttrId的高度（已改为flex布局自动处理）
+    function adjustModLeftHeight(id) {
+        // no-op: flex layout handles height automatically
+    }
+    // Resize handle for the top visualization panel
+    (function () {
+        const resizeHandle = document.getElementById('resizeHandle');
+        const flowchartId = document.getElementById('flowchartId');
+        let isResizing = false;
+        let startY = 0;
+        let startHeight = 0;
+
+        resizeHandle.addEventListener('mousedown', function (e) {
+            isResizing = true;
+            startY = e.clientY;
+            startHeight = flowchartId.offsetHeight;
+            resizeHandle.classList.add('active');
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!isResizing) return;
+            var newHeight = startHeight + (e.clientY - startY);
+            if (newHeight < 80) newHeight = 80;
+            if (newHeight > window.innerHeight * 0.8) newHeight = window.innerHeight * 0.8;
+            flowchartId.style.height = newHeight + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (!isResizing) return;
+            isResizing = false;
+            resizeHandle.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            adjustModLeftHeight('modLeftClassAttrId');
+            adjustModLeftHeight('rightArgumentsId');
+        });
+    })();
+
+    // ========== Feature Guide Tour ==========
+    var _guideTourRunning = false;
+    var _guideTourStepIndex = 0;
+    var _guideTourAutoTimer = null;
+
+    var _guideTourSteps = [
+        {
+            selector: '.tabs',
+            icon: '\u{1F4CA}',
+            title: 'View Tabs',
+            desc: 'Switch between Flowchart (call graph), Gantt (execution timing), Swimlane (agent interaction lanes), and Timeline (sequential step chain) views.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '#collapseToggleBtn',
+            icon: '\u{1F504}',
+            title: 'Toggle Graph',
+            desc: 'Collapse or expand the graph visualization panel to free up space for the configuration and playground sections below.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '#collapseExample',
+            icon: '\u{1F5BC}',
+            title: 'Graph Panel',
+            desc: 'Renders the Oxy execution graph for the current trace. Click any node to select it — the panels below will update to show that node\'s details. Drag the bottom edge to resize.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.agentCard',
+            icon: '\u{1F4E6}',
+            title: 'Oxy Info Card',
+            desc: 'Shows the selected Oxy node\'s name, type (Agent, Tool, LLM, Flow, etc.), trace_id, and its caller. Updates automatically when you click a different node in the graph.',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.mod-header-operation',
+            icon: '\u{2699}️',
+            title: 'Action Buttons',
+            desc: 'Pre/Next step through the execution sequence of the current node. Regenerate sends a POST /call request using the edited parameters from the left panel (only enabled for LLM nodes).',
+            tooltipPos: 'below'
+        },
+        {
+            selector: '.mod-left',
+            icon: '\u{1F4DD}',
+            title: 'Node Attributes',
+            desc: 'Editable class_attr of the selected node: system_prompt, model name, temperature, tool configs, etc. Changes here are sent as parameters when you click Regenerate.',
+            tooltipPos: 'right'
+        },
+        {
+            selector: '.mod-right',
+            icon: '\u{1F4E5}',
+            title: 'Input / Output',
+            desc: 'Shows the request arguments (messages, query, etc.) for the selected execution step. Editable — modified values are included when Regenerate is called.',
+            tooltipPos: 'left'
+        },
+        {
+            selector: '.node-right',
+            icon: '\u{1F3AE}',
+            title: 'PlayGround',
+            desc: 'Displays the LLM response (rendered as Markdown). After clicking Regenerate, the new response appends here so you can compare before and after results.',
+            tooltipPos: 'left'
+        }
+    ];
+
+    function startGuideTour() {
+        if (_guideTourRunning) return;
+        _guideTourRunning = true;
+        _guideTourStepIndex = 0;
+        document.getElementById('tour-mask').classList.add('visible');
+        _showGuideTourStep(0);
+    }
+
+    function _showGuideTourStep(index) {
+        if (index < 0 || index >= _guideTourSteps.length) {
+            endGuideTour();
+            return;
+        }
+
+        _guideTourStepIndex = index;
+        var step = _guideTourSteps[index];
+
+        var targetEl = document.querySelector(step.selector);
+        if (!targetEl) {
+            if (index < _guideTourSteps.length - 1) {
+                _showGuideTourStep(index + 1);
+            } else {
+                endGuideTour();
+            }
+            return;
+        }
+
+        var elRect = targetEl.getBoundingClientRect();
+        var pad = 4;
+        var spotLeft = elRect.left - pad;
+        var spotTop = elRect.top - pad;
+        var spotW = elRect.width + pad * 2;
+        var spotH = elRect.height + pad * 2;
+
+        var spotlight = document.getElementById('tour-spotlight');
+        spotlight.style.left = spotLeft + 'px';
+        spotlight.style.top = spotTop + 'px';
+        spotlight.style.width = spotW + 'px';
+        spotlight.style.height = spotH + 'px';
+
+        var tooltip = document.getElementById('tour-tooltip');
+        var firstShow = !tooltip.classList.contains('visible');
+
+        var winW = window.innerWidth;
+        var winH = window.innerHeight;
+        var ttWidth = 320;
+        var ttHeight = 180;
+        var gap = 16;
+        var resolvedPos = step.tooltipPos;
+
+        if (resolvedPos === 'right' && spotLeft + spotW + gap + ttWidth > winW) {
+            resolvedPos = 'left';
+        } else if (resolvedPos === 'left' && spotLeft - gap - ttWidth < 0) {
+            resolvedPos = 'right';
+        } else if (resolvedPos === 'below' && spotTop + spotH + gap + ttHeight > winH) {
+            resolvedPos = 'above';
+        } else if (resolvedPos === 'above' && spotTop - gap - ttHeight < 0) {
+            resolvedPos = 'below';
+        }
+
+        var ttLeft, ttTop;
+
+        if (resolvedPos === 'below') {
+            ttLeft = Math.max(gap, Math.min(spotLeft, winW - ttWidth - gap));
+            ttTop = spotTop + spotH + gap;
+        } else if (resolvedPos === 'above') {
+            ttLeft = Math.max(gap, Math.min(spotLeft, winW - ttWidth - gap));
+            ttTop = spotTop - ttHeight - gap;
+        } else if (resolvedPos === 'right') {
+            ttLeft = spotLeft + spotW + gap;
+            ttTop = Math.max(gap, Math.min(spotTop, winH - ttHeight - gap));
+        } else {
+            ttLeft = spotLeft - ttWidth - gap;
+            ttTop = Math.max(gap, Math.min(spotTop, winH - ttHeight - gap));
+        }
+
+        ttLeft = Math.max(gap, Math.min(ttLeft, winW - ttWidth - gap));
+        ttTop = Math.max(gap, Math.min(ttTop, winH - ttHeight - gap));
+
+        function writeContent() {
+            document.getElementById('tour-icon').textContent = step.icon;
+            document.getElementById('tour-title').textContent = step.title;
+            document.getElementById('tour-desc').textContent = step.desc;
+            document.getElementById('tour-counter').textContent = (index + 1) + ' / ' + _guideTourSteps.length;
+            var nextBtn = document.getElementById('tour-next-btn');
+            nextBtn.textContent = (index === _guideTourSteps.length - 1) ? 'Finish' : 'Next';
+        }
+
+        if (firstShow) {
+            tooltip.style.transition = 'none';
+            tooltip.style.left = ttLeft + 'px';
+            tooltip.style.top = ttTop + 'px';
+            void tooltip.offsetWidth;
+            tooltip.style.transition = '';
+            writeContent();
+            requestAnimationFrame(function() {
+                tooltip.classList.add('visible');
+            });
+        } else {
+            tooltip.style.left = ttLeft + 'px';
+            tooltip.style.top = ttTop + 'px';
+            tooltip.classList.add('content-swapping');
+            setTimeout(function() {
+                writeContent();
+                tooltip.classList.remove('content-swapping');
+            }, 180);
+        }
+
+        clearTimeout(_guideTourAutoTimer);
+        _guideTourAutoTimer = setTimeout(function() {
+            if (_guideTourRunning) nextGuideTourStep();
+        }, 6000);
+    }
+
+    function nextGuideTourStep() {
+        clearTimeout(_guideTourAutoTimer);
+        if (_guideTourStepIndex >= _guideTourSteps.length - 1) {
+            endGuideTour();
+        } else {
+            _showGuideTourStep(_guideTourStepIndex + 1);
+        }
+    }
+
+    function endGuideTour() {
+        clearTimeout(_guideTourAutoTimer);
+        _guideTourRunning = false;
+        var tooltip = document.getElementById('tour-tooltip');
+        tooltip.classList.remove('visible');
+        setTimeout(function() {
+            document.getElementById('tour-mask').classList.remove('visible');
+        }, 300);
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && _guideTourRunning) {
+            endGuideTour();
+        }
+    });
+</script>
+</html>
